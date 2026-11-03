@@ -1,27 +1,24 @@
-GORA ONLINE MANAGEMENT SYSTEM — STARTER PACKAGE
-
-This is a starter website, not a production-ready lending platform.
-Do not enter real member or financial data until security policies, secure
-loan approval, installment generation, repayment allocation and backups are
-configured and tested.
+GORA MANAGEMENT SYSTEM — BUILD 2
+This package redesigns the existing GORA starter interface in a responsive, blue/teal administration layout inspired by the reference screenshots.
 
 Included:
-- Mobile-responsive web interface
-- Supabase email/password login
-- Dashboard totals
-- Read-only lists for members, chamas, loan applications, savings,
-  repayments and cashbook
+- Existing Supabase email/password authentication and profile role check.
+- Responsive navigation for the planned GORA modules.
+- Live read-only dashboard metrics from the existing Supabase schema.
+- Read-only record lists for existing tables/views.
+- No sample financial records are inserted.
 
-Setup:
-1. Obtain Project URL and anon/public key from Supabase > Project Settings > API.
-2. Upload these files to a static host that permits commercial use.
-3. Open the site, expand Connection setup, enter URL and anon/public key.
-4. Create the administrator login in Supabase Authentication.
-5. Provision an active public.profiles record for that user's auth UUID.
-6. Configure and test RLS policies before enabling live records.
+IMPORTANT:
+This is a connected interface build, not a production-ready lending platform.
+Several database policies/views still need security review. Some menu sections are read-only placeholders until secure forms and server-side transaction functions are built.
+Do not use for real loan approvals, disbursements, repayments, or identity-document uploads yet.
+Keep using the existing Supabase project and the public anon/publishable key only.
+Do not enter or publish a service-role key.
+Deployment is manual through the existing Cloudflare Pages/Workers project; this package does not deploy itself.
 
-Never put a Supabase service_role or secret key in browser code.
-The site is not yet deployed and has no public GORA URL.
-Not yet included: data-entry forms, secure approval RPC, automatic installment
-schedules, partial-payment allocation, staff invitation, M-Pesa, SMS, backups,
-or full accounting/reconciliation.
+BUILD 3 ADDITION — CHAMA MANAGEMENT
+- Add new chama form (name, location, meeting day, weekly/biweekly/monthly frequency, status).
+- Add existing active member to selected chama with join date.
+- Chama forms use existing chamas and chama_members tables.
+- Apply GORA_Chama_Policies.sql in Supabase SQL Editor before using these write actions.
+- The current schema has no meeting-frequency column; frequency is displayed in the form but is not saved yet. Add a column before relying on it.
