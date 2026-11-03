@@ -1,1 +1,54 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#12345a"><title>GORA Management</title><link rel="stylesheet" href="style.css"></head><body><section id="login" class="login"><div class="card"><div class="logo">G</div><small>GORA SAVINGS & CREDIT GROUP</small><h1>Management System</h1><p>Sign in to your GORA workspace.</p><label>Email<input id="email" type="email"></label><label>Password<input id="password" type="password"></label><button id="signin">Sign in</button><p id="msg"></p><details><summary>Connection setup</summary><label>Supabase Project URL<input id="url" placeholder="https://your-project.supabase.co"></label><label>Supabase anon/public key<textarea id="key"></textarea></label><button id="save">Save settings</button><p>Use only the anon/public key. Never use a service_role or secret key here.</p></details></div></section><div id="app" class="hidden"><aside><div class="logo">G</div><h2>GORA</h2><nav><button data-page="Dashboard">Dashboard</button><button data-page="Members">Members</button><button data-page="Chamas">Chamas</button><button data-page="Loans">Loans</button><button data-page="Savings">Savings</button><button data-page="Repayments">Repayments</button><button data-page="Cashbook">Cashbook</button></nav><button id="logout">Sign out</button></aside><main><header><small>GORA SAVINGS & CREDIT GROUP</small><h1 id="title">Dashboard</h1><span id="who"></span></header><div id="content">Loading…</div></main></div><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#075985"><title>GORA | Management System</title>
+<link rel="stylesheet" href="style.css">
+</head><body>
+<section id="login" class="login-wrap"><div class="login-card">
+<div class="brand-mark">G</div><div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div>
+<h1>Management workspace</h1><p>Secure sign-in for authorised GORA staff.</p>
+<label>Email address<input id="email" type="email" autocomplete="username"></label>
+<label>Password<input id="password" type="password" autocomplete="current-password"></label>
+<button id="signin" class="primary full">Sign in</button><p id="msg" class="message" role="status"></p>
+<details><summary>Connection settings</summary>
+<label>Supabase project URL<input id="url" placeholder="https://your-project.supabase.co"></label>
+<label>Supabase anon / publishable key<textarea id="key" rows="3"></textarea></label>
+<button id="save" class="secondary full">Save connection settings</button>
+<p class="hint">Use only the public anon/publishable key. Never enter a service-role or secret key.</p>
+</details></div></section>
+
+<div id="app" class="shell hidden">
+<aside class="sidebar" id="sidebar">
+<div class="side-brand"><div class="brand-mark small">G</div><div><b>GORA</b><small>SAVINGS &amp; CREDIT GROUP</small></div></div>
+<div class="side-label">WORKSPACE</div>
+<nav id="nav">
+<button class="nav-item active" data-page="Dashboard"><span>▦</span>Dashboard</button>
+<div class="nav-label">PEOPLE</div>
+<button class="nav-item" data-page="Members"><span>♙</span>Members registry</button>
+<button class="nav-item" data-page="Chamas"><span>♧</span>Chama management</button>
+<div class="nav-label">CREDIT</div>
+<button class="nav-item" data-page="Applications"><span>▤</span>Loan applications</button>
+<button class="nav-item" data-page="Loans"><span>▣</span>Active loans</button>
+<button class="nav-item" data-page="Installments"><span>◷</span>Installments &amp; due dates</button>
+<button class="nav-item" data-page="Arrears"><span>⚠</span>Loan arrears</button>
+<button class="nav-item" data-page="Repayments"><span>↙</span>Collections &amp; repayments</button>
+<div class="nav-label">FINANCE</div>
+<button class="nav-item" data-page="Savings"><span>◈</span>Savings ledger</button>
+<button class="nav-item" data-page="Cashbook"><span>▧</span>Cashbook</button>
+<button class="nav-item" data-page="Petty Cash"><span>◉</span>Petty cash</button>
+<button class="nav-item" data-page="Expenses"><span>−</span>Expenses</button>
+<div class="nav-label">MANAGEMENT</div>
+<button class="nav-item" data-page="Performance"><span>▥</span>Performance insights</button>
+<button class="nav-item" data-page="Reports"><span>▤</span>Reports</button>
+<button class="nav-item" data-page="Staff"><span>♙</span>Staff &amp; permissions</button>
+<button class="nav-item" data-page="Settings"><span>⚙</span>System settings</button>
+</nav>
+<div class="side-bottom"><div class="signed-in"><span class="avatar">G</span><div><b id="who">GORA user</b><small id="role">Staff workspace</small></div></div><button id="logout" class="logout">↪ Sign out</button></div>
+</aside>
+<main class="main">
+<header class="topbar"><button id="menuToggle" class="menu-toggle" aria-label="Open menu">☰</button><div><div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div><h1 id="title">Dashboard</h1></div><div class="top-right"><span class="secure">● Secure workspace</span><span class="user-pill" id="topWho">Signed in</span></div></header>
+<div class="page-wrap"><div id="content"><div class="panel">Loading your GORA workspace…</div></div>
+<footer>GORA Savings &amp; Credit Group <span>•</span> Internal management system</footer></div>
+</main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script>
+</body></html>
