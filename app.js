@@ -9,44 +9,67 @@ $('nav').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if
 const safe=async(q)=>{const r=await q;if(r.error)throw r.error;return r};
 function stat(label,value,foot='',kind=''){return `<div class="stat ${kind}"><div class="label">${label}</div><strong>${value}</strong><div class="foot">${foot}</div></div>`}
 function table(title,cols,rows){return `<div class="tablebox"><div class="table-head"><h3>${title}</h3></div><table><thead><tr>${cols.map(c=>`<th>${c.replaceAll('_',' ')}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${cols.map(c=>`<td>${String(r[c]??'—')}</td>`).join('')}</tr>`).join(''):`<tr><td class="empty" colspan="${cols.length}">No records found.</td></tr>`}</tbody></table></div>`}
+
 async function dashboard(c){
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const monthKey=d=>String(d||'').slice(0,7), money=n=>cash(Math.max(0,Number(n)||0));
  const [m,ch,l,r,apps,inst]=await Promise.all([
- safe(db.from('members').select('id',{count:'exact',head:true})),
- safe(db.from('chamas').select('id',{count:'exact',head:true})),
- safe(db.from('loans').select('id,principal,interest_amount,total_payable,status,disbursement_date')),
- safe(db.from('repayments').select('amount,payment_date')),
- safe(db.from('loan_applications').select('id,status')),
- safe(db.from('installment_balances').select('amount_due,amount_paid,balance,due_date,payment_status'))
+  safe(db.from('members').select('id',{count:'exact',head:true})),
+  safe(db.from('chamas').select('id',{count:'exact',head:true}).eq('status','active')),
+  safe(db.from('loans').select('id,principal,total_payable,status,disbursement_date')),
+  safe(db.from('repayments').select('amount,payment_date')),
+  safe(db.from('loan_applications').select('id,status')),
+  safe(db.from('installment_balances').select('loan_id,balance,due_date,payment_status'))
  ]);
- const loans=l.data||[],reps=r.data||[],ins=inst.data||[],today=new Date().toISOString().slice(0,10);
- const issued=loans.reduce((s,x)=>s+Number(x.principal||0),0),paid=reps.reduce((s,x)=>s+Number(x.amount||0),0);
- const outstanding=loans.reduce((s,x)=>s+Number(x.total_payable||0),0)-paid;
- const arrears=ins.filter(x=>x.due_date<today&&Number(x.balance)>0).reduce((s,x)=>s+Number(x.balance),0);
- const dueToday=ins.filter(x=>x.due_date===today&&Number(x.balance)>0).reduce((s,x)=>s+Number(x.balance),0);
- const pending=(apps.data||[]).filter(x=>x.status==='pending').length;
- c.innerHTML=`<div class="page-heading"><div><h2>Good day, ${profile?.full_name||'GORA team'}</h2><div class="sub">Your live operational and portfolio overview.</div></div><span class="pill">LIVE DATABASE</span></div>
+ const allLoans=l.data||[],reps=r.data||[],ins=inst.data||[];
+ const issuedLoans=allLoans.filter(x=>x.disbursement_date&&!['pending','approved','rejected','cancelled'].includes(String(x.status||'').toLowerCase()));
+ const issuedIds=new Set(issuedLoans.map(x=>x.id));
+ const paid=reps.reduce((s,x)=>s+Number(x.amount||0),0);
+ const principal=issuedLoans.reduce((s,x)=>s+Number(x.principal||0),0);
+ const portfolioInst=ins.filter(x=>issuedIds.has(x.loan_id));
+ const outstanding=portfolioInst.reduce((s,x)=>s+Number(x.balance||0),0);
+ const overdue=portfolioInst.filter(x=>x.due_date<today&&Number(x.balance)>0);
+ const arrears=overdue.reduce((s,x)=>s+Number(x.balance||0),0);
+ const due=portfolioInst.filter(x=>x.due_date===today&&Number(x.balance)>0);
+ const dueToday=due.reduce((s,x)=>s+Number(x.balance||0),0);
+ const daysLate=d=>Math.floor((Date.parse(today+'T00:00:00Z')-Date.parse(String(d)+'T00:00:00Z'))/86400000);
+ const ageing=[['1–7 days',1,7],['8–30 days',8,30],['31–60 days',31,60],['Over 60 days',61,Infinity]];
+ const ageRows=ageing.map(([label,from,to])=>{const rows=overdue.filter(x=>daysLate(x.due_date)>=from&&daysLate(x.due_date)<=to);return {label,count:rows.length,amount:rows.reduce((s,x)=>s+Number(x.balance||0),0)}});
+ const pending=(apps.data||[]).filter(x=>String(x.status||'').toLowerCase()==='pending').length;
+ const activeLoans=issuedLoans.filter(x=>!['completed','closed','defaulted','written_off'].includes(String(x.status||'').toLowerCase())).length;
+ const completed=issuedLoans.filter(x=>['completed','closed'].includes(String(x.status||'').toLowerCase())).length;
+ const defaulted=issuedLoans.filter(x=>['defaulted','written_off'].includes(String(x.status||'').toLowerCase())).length;
+ const now=new Date(),months=[];
+ for(let i=5;i>=0;i--){months.push(new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-i,1)).toISOString().slice(0,7));}
+ const trend=months.map(k=>({month:k,disbursed:issuedLoans.filter(x=>monthKey(x.disbursement_date)===k).reduce((s,x)=>s+Number(x.principal||0),0),collected:reps.filter(x=>monthKey(x.payment_date)===k).reduce((s,x)=>s+Number(x.amount||0),0)}));
+ const fmtMonth=k=>new Date(k+'-01T00:00:00').toLocaleDateString('en-KE',{month:'short',year:'2-digit'});
+ c.innerHTML=`<div class="page-heading"><div><h2>Good day, ${esc(profile?.full_name||'GORA team')}</h2><div class="sub">Live portfolio and operations overview · ${today} (Kenya time)</div></div><span class="pill">LIVE DATABASE</span></div>
  <div class="stats">
  ${stat('Registered members',m.count||0,'All member records','blue')}
- ${stat('Active chamas',ch.count||0,'All registered groups','good')}
- ${stat('Loans disbursed',cash(issued),'Total principal recorded','blue')}
- ${stat('Total repayments',cash(paid),'Payments recorded','good')}
- ${stat('Outstanding balance',cash(Math.max(0,outstanding)),'Total payable less repayments','warn')}
- ${stat('Loan arrears',cash(arrears),'Past-due unpaid installments','red')}
- ${stat('Loans due today',cash(dueToday),'Unpaid installments due today','warn')}
- ${stat('Pending applications',pending,'Awaiting review','blue')}
+ ${stat('Active chamas',ch.count||0,'Groups marked active','good')}
+ ${stat('Loans disbursed',money(principal),'Principal of disbursed loans','blue')}
+ ${stat('Total repayments',money(paid),'All recorded repayments','good')}
+ ${stat('Outstanding balance',money(outstanding),'Unpaid installment balances','warn')}
+ ${stat('Loan arrears',money(arrears),'Past-due unpaid installments','red')}
+ ${stat('Due today',money(dueToday),due.length+' unpaid installments','warn')}
+ ${stat('Pending applications',pending,'Awaiting administrator review','blue')}
  </div>
- <div class="notice">Figures are calculated from records currently visible to your account. Before operational use, database permissions and repayment posting must be fully tested.</div>
- <div class="grid-two"><div class="panel"><h3>Portfolio at a glance</h3>
- <div class="metric-line"><span>Loans on record</span><b>${loans.length}</b></div>
- <div class="metric-line"><span>Active loans</span><b>${loans.filter(x=>['active','approved'].includes(x.status)).length}</b></div>
- <div class="metric-line"><span>Completed loans</span><b>${loans.filter(x=>x.status==='completed').length}</b></div>
- <div class="metric-line"><span>Defaulted loans</span><b>${loans.filter(x=>x.status==='defaulted').length}</b></div></div>
- <div class="panel"><h3>Operational attention</h3>
- <div class="metric-line"><span>Pending loan applications</span><b>${pending}</b></div>
- <div class="metric-line"><span>Installments overdue</span><b>${ins.filter(x=>x.due_date<today&&Number(x.balance)>0).length}</b></div>
- <div class="metric-line"><span>Installments due today</span><b>${ins.filter(x=>x.due_date===today&&Number(x.balance)>0).length}</b></div>
- <div class="metric-line"><span>Repayments recorded</span><b>${reps.length}</b></div></div></div>`;
+ <div class="notice">Portfolio balances use installment balances for loans with a recorded disbursement date. Repayments shown are all recorded repayments. Confirm database access and payment allocation before using these figures for financial decisions.</div>
+ <div class="grid-two"><div class="panel"><h3>Portfolio status</h3>
+ <div class="metric-line"><span>Disbursed loans</span><b>${issuedLoans.length}</b></div>
+ <div class="metric-line"><span>Active loans</span><b>${activeLoans}</b></div>
+ <div class="metric-line"><span>Completed / closed</span><b>${completed}</b></div>
+ <div class="metric-line"><span>Defaulted / written off</span><b>${defaulted}</b></div>
+ <div class="metric-line"><span>Installments overdue</span><b>${overdue.length}</b></div></div>
+ <div class="panel"><h3>Arrears ageing</h3>
+ ${ageRows.map(a=>`<div class="metric-line"><span>${a.label} (${a.count})</span><b>${money(a.amount)}</b></div>`).join('')}
+ <div class="metric-line"><span><b>Total arrears</b></span><b>${money(arrears)}</b></div></div></div>
+ <div class="panel"><h3>Six-month activity</h3><div class="sub">Disbursements are principal issued; collections are repayments recorded in each month.</div>
+ ${trend.map(t=>`<div class="metric-line"><span>${fmtMonth(t.month)}</span><span>Issued: <b>${money(t.disbursed)}</b> · Collected: <b>${money(t.collected)}</b></span></div>`).join('')}
+ </div>
+ <div class="notice">No repayment percentage, attendance score, or chama performance score is shown because those measures require verified targets and complete supporting records. Loan rates and fees remain controlled by loan-product settings.</div>`;
 }
+
 const pages={
  'Members':['members',['member_number','full_name','phone','location','status']],
  'Chamas':['chamas',['name','location','meeting_day','status']],
