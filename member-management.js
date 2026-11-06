@@ -220,12 +220,14 @@
           </label>
 
           <label>
-            Date of Birth
-            <input
-              name="date_of_birth"
-              type="date"
-            >
-          </label>
+  Date of Birth
+  <input
+    name="date_of_birth"
+    type="date"
+    value=""
+    max="${new Date().toISOString().slice(0,10)}"
+  >
+</label>
           <div class="panel">
             <h3>Member Documents</h3>
             <p>JPG, PNG or PDF. Maximum 5 MB per file.</p>
