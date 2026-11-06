@@ -226,7 +226,46 @@
               type="date"
             >
           </label>
+          <div class="panel">
+            <h3>Member Documents</h3>
+            <p>JPG, PNG or PDF. Maximum 5 MB per file.</p>
+          </div>
 
+          <label>
+            Profile Photo
+            <input name="profile_photo" type="file"
+              accept="image/jpeg,image/png">
+          </label>
+
+          <label>
+            National ID — Front
+            <input name="national_id_front" type="file"
+              accept="image/jpeg,image/png,application/pdf">
+          </label>
+
+          <label>
+            National ID — Back
+            <input name="national_id_back" type="file"
+              accept="image/jpeg,image/png,application/pdf">
+          </label>
+
+          <label>
+            Proof of Residence
+            <input name="proof_of_residence" type="file"
+              accept="image/jpeg,image/png,application/pdf">
+          </label>
+
+          <label>
+            Business / Employment Document
+            <input name="business_employment" type="file"
+              accept="image/jpeg,image/png,application/pdf">
+          </label>
+
+          <label>
+            Other Supporting Document
+            <input name="other_supporting" type="file"
+              accept="image/jpeg,image/png,application/pdf">
+          </label>
           <label>
             Date Joined
             <input
@@ -816,7 +855,39 @@
       };
 
       const chamaId = data.get('chama_id');
+      const fileFields = [
+        ['profile_photo', 'profile_photo'],
+        ['national_id_front', 'national_id_front'],
+        ['national_id_back', 'national_id_back'],
+        ['proof_of_residence', 'proof_of_residence'],
+        ['business_employment', 'business_employment'],
+        ['other_supporting', 'other_supporting']
+      ];
 
+      const selectedFiles = fileFields
+        .map(([field, type]) => ({
+          file: data.get(field),
+          type
+        }))
+        .filter(item => item.file && item.file.size > 0);
+
+      const allowedTypes = [
+        'image/jpeg',
+        'image/png',
+        'application/pdf'
+      ];
+
+      for (const item of selectedFiles) {
+        if (item.file.size > 5 * 1024 * 1024) {
+          message.textContent = 'Each document must be 5 MB or smaller.';
+          return;
+        }
+
+        if (!allowedTypes.includes(item.file.type)) {
+          message.textContent = 'Only JPG, PNG and PDF files are allowed.';
+          return;
+        }
+      }
       try {
 
         const inserted = await safe(
@@ -845,8 +916,48 @@
 
         }
 
-        message.textContent =
-          'Member registered successfully.';
+       const { data: authData, error: authError } =
+  await db.auth.getUser();
+
+if (authError || !authData.user) {
+  throw new Error('Please sign in again.');
+}
+
+for (const item of selectedFiles) {
+  const safeName = item.file.name.replace(
+    /[^a-zA-Z0-9._-]/g,
+    '_'
+  );
+
+  const storagePath =
+    `${inserted.data.id}/${item.type}/${Date.now()}-${safeName}`;
+
+  const { error: uploadError } = await db.storage
+    .from('member-documents')
+    .upload(storagePath, item.file, {
+      contentType: item.file.type,
+      upsert: false
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { error: documentError } = await db
+    .from('member_documents')
+    .insert({
+      member_id: inserted.data.id,
+      document_type: item.type,
+      storage_path: storagePath,
+      uploaded_by: authData.user.id
+    });
+
+  if (documentError) {
+    await db.storage.from('member-documents').remove([storagePath]);
+    throw documentError;
+        }
+    }
+
+    message.textContent =
+      'Member registered successfully';
 
         await window.membersPage(container);
 
