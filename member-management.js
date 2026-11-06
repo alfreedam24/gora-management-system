@@ -803,6 +803,79 @@
 
       `;
 
+      // Load securely stored member documents
+      const docsResult = await safe(
+        db.from('member_documents')
+          .select('id, document_type, storage_path, uploaded_at')
+          .eq('member_id', memberId)
+          .order('uploaded_at', { ascending: false })
+      );
+
+      const documents = docsResult.data || [];
+
+      const documentLabels = {
+        profile_photo: 'Profile Photo',
+        national_id_front: 'National ID - Front',
+        national_id_back: 'National ID - Back',
+        proof_of_residence: 'Proof of Residence',
+        business_employment: 'Business / Employment',
+        other_supporting: 'Other Supporting Document'
+      };
+
+      const documentCards = await Promise.all(
+        documents.map(async doc => {
+          const { data, error } = await db.storage
+            .from('member-documents')
+            .createSignedUrl(doc.storage_path, 300);
+
+          if (error || !data?.signedUrl) {
+            return `
+              <div class="panel">
+                <b>${escapeHTML(documentLabels[doc.document_type] || doc.document_type)}</b>
+                <p>Unable to open document. Check staff access.</p>
+              </div>
+            `;
+          }
+
+          const isPhoto = doc.document_type === 'profile_photo';
+
+          return `
+            <div class="panel">
+              <b>${escapeHTML(documentLabels[doc.document_type] || doc.document_type)}</b>
+              ${
+                isPhoto
+                  ? `<p><img src="${escapeHTML(data.signedUrl)}"
+                       alt="Member profile photo"
+                       style="max-width:180px;border-radius:12px"></p>`
+                  : ''
+              }
+              <p>
+                <a href="${escapeHTML(data.signedUrl)}"
+                   target="_blank"
+                   rel="noopener">
+                  View / Download
+                </a>
+              </p>
+            </div>
+          `;
+        })
+      );
+
+      el('memberProfile').insertAdjacentHTML(
+        'beforeend',
+        `
+          <div class="panel">
+            <h3>Member Documents</h3>
+            <p>Private documents available to authorised GORA staff.</p>
+            ${
+              documentCards.length
+                ? documentCards.join('')
+                : '<p>No documents uploaded.</p>'
+            }
+          </div>
+        `
+      );
+
       el('memberProfile').scrollIntoView({
         behavior: 'smooth',
         block: 'start'
