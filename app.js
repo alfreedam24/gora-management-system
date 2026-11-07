@@ -575,7 +575,9 @@ async function collectionsPage(c){
     </div>`;
 
    alert('Payment recorded successfully. Receipt: '+receipt.receipt_number);
-   await collectionsPage(c);
+const savedReceipt=$('collectionReceipt').innerHTML;
+await collectionsPage(c);
+$('collectionReceipt').innerHTML=savedReceipt;
 
   }catch(err){
    msg.textContent='Payment not confirmed: '+(err.message||String(err));
