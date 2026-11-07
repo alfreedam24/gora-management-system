@@ -363,7 +363,225 @@ async function applicationsPage(c){
  $('applicationForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),p=prod.find(x=>x.id===f.get('product_id')),amt=Number(f.get('requested_amount')),days=Number(f.get('proposed_duration_days')),msg=$('applicationMsg');if(!p){msg.textContent='Select a loan product.';return}if(amt<Number(p.minimum_amount)||amt>Number(p.maximum_amount)){msg.textContent=`Amount must be between ${cash(p.minimum_amount)} and ${cash(p.maximum_amount)}.`;return}try{await safe(db.from('loan_applications').insert({member_id:f.get('member_id'),product_id:p.id,requested_amount:amt,proposed_interest_rate:p.interest_rate,proposed_duration_days:days,purpose:f.get('purpose').trim(),status:'pending'}));msg.textContent='Application submitted and marked pending. It has not been approved.';await applicationsPage(c)}catch(err){msg.textContent='Could not submit application: '+(err.message||err)}};
 }
 
+async function collectionsPage(c){
+ const [loansRes,membersRes,paymentsRes]=await Promise.all([
+  safe(db.from('loans').select('id,member_id,status,disbursement_date,principal,total_payable').not('disbursement_date','is',null).in('status',['approved','active'])),
+  safe(db.from('members').select('id,full_name,member_number,phone')),
+  safe(db.from('repayments').select('id,loan_id,amount,payment_date,payment_method,receipt_number,notes').order('payment_date',{ascending:false}).limit(100))
+ ]);
 
+ const loans=loansRes.data||[];
+ const members=membersRes.data||[];
+ const payments=paymentsRes.data||[];
+ const memberMap=Object.fromEntries(members.map(m=>[m.id,m]));
+ const money=n=>cash(n);
+
+ c.innerHTML=`
+ <div class="page-heading">
+  <div>
+   <h2>Collections Management</h2>
+   <div class="sub">Record and monitor loan repayments securely.</div>
+  </div>
+ </div>
+
+ <div class="stats">
+  ${stat('Total collections',cash(payments.reduce((s,p)=>s+Number(p.amount||0),0)),'Recorded repayments','good')}
+  ${stat('Payment records',payments.length,'Recent records','blue')}
+  ${stat('Active loans',loans.length,'Eligible disbursed loans','warn')}
+ </div>
+
+ <div class="notice">
+  Every payment must be linked to the correct loan and installment.
+  A successful payment generates a unique GORA receipt.
+ </div>
+
+ <div class="panel">
+  <h3>Record a loan repayment</h3>
+  <form id="collectionForm" class="grid-two">
+
+   <label>Borrower
+    <select name="member_id" id="collectionMember" required>
+     <option value="">Select borrower</option>
+     ${members.map(m=>`<option value="${m.id}">${esc(m.full_name)} — ${esc(m.member_number||'')}</option>`).join('')}
+    </select>
+   </label>
+
+   <label>Loan
+    <select name="loan_id" id="collectionLoan" required>
+     <option value="">Select loan</option>
+    </select>
+   </label>
+
+   <label>Installment
+    <select name="installment_id" id="collectionInstallment" required>
+     <option value="">Select installment</option>
+    </select>
+   </label>
+
+   <label>Outstanding installment balance
+    <input id="collectionBalance" readonly placeholder="Select installment">
+   </label>
+
+   <label>Amount received (KSh)
+    <input name="amount" id="collectionAmount" type="number" min="1" step="0.01" required>
+   </label>
+
+   <label>Payment method
+    <select name="payment_method" required>
+     <option value="">Select method</option>
+     <option value="M-Pesa">M-Pesa</option>
+     <option value="Cash">Cash</option>
+     <option value="Bank Transfer">Bank transfer</option>
+    </select>
+   </label>
+
+   <label>Payment date and time
+    <input name="payment_date" type="datetime-local" required>
+   </label>
+
+   <label>Notes / M-Pesa reference
+    <input name="notes" maxlength="500" placeholder="Optional reference or notes">
+   </label>
+
+   <div>
+    <button class="primary" type="submit">Record payment</button>
+    <p id="collectionMsg" class="message"></p>
+   </div>
+  </form>
+ </div>
+
+ <div id="collectionReceipt"></div>
+
+ ${table('Recent collections',
+ ['receipt_number','borrower','amount','payment_method','payment_date','recorded_by'],
+ payments.map(p=>({
+  receipt_number:esc(p.receipt_number||'—'),
+  borrower:esc(memberMap[loans.find(l=>l.id===p.loan_id)?.member_id]?.full_name||'Borrower'),
+  amount:money(p.amount),
+  payment_method:esc(p.payment_method||'—'),
+  payment_date:p.payment_date?new Date(p.payment_date).toLocaleString('en-KE'):'—',
+  recorded_by:'GORA staff'
+ }))
+ ))}
+ `;
+
+ const form=$('collectionForm');
+ const memberSelect=$('collectionMember');
+ const loanSelect=$('collectionLoan');
+ const installmentSelect=$('collectionInstallment');
+ const balanceInput=$('collectionBalance');
+ const amountInput=$('collectionAmount');
+
+ form.elements.payment_date.value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+
+ memberSelect.onchange=()=>{
+  const memberId=memberSelect.value;
+  const memberLoans=loans.filter(l=>l.member_id===memberId);
+
+  loanSelect.innerHTML='<option value="">Select loan</option>'+
+   memberLoans.map(l=>`<option value="${l.id}">${esc(l.status)} — ${money(l.principal)}</option>`).join('');
+
+  installmentSelect.innerHTML='<option value="">Select installment</option>';
+  balanceInput.value='';
+  amountInput.value='';
+ };
+
+ loanSelect.onchange=async()=>{
+  installmentSelect.innerHTML='<option value="">Loading installments...</option>';
+  balanceInput.value='';
+  amountInput.value='';
+
+  try{
+   const result=await safe(
+    db.from('installment_balances')
+    .select('installment_id,installment_number,due_date,amount_due,amount_paid,balance,payment_status')
+    .eq('loan_id',loanSelect.value)
+    .gt('balance',0)
+    .order('installment_number')
+   );
+
+   const rows=result.data||[];
+
+   installmentSelect.innerHTML='<option value="">Select installment</option>'+
+    rows.map(i=>`<option value="${i.installment_id}" data-balance="${i.balance}">Installment ${i.installment_number} — Due ${i.due_date} — Balance ${money(i.balance)}</option>`).join('');
+
+   if(!rows.length){
+    installmentSelect.innerHTML='<option value="">No unpaid installments</option>';
+   }
+  }catch(err){
+   installmentSelect.innerHTML='<option value="">Could not load installments</option>';
+   $('collectionMsg').textContent=err.message||String(err);
+  }
+ };
+
+ installmentSelect.onchange=()=>{
+  const option=installmentSelect.selectedOptions[0];
+  const balance=Number(option?.dataset.balance||0);
+  balanceInput.value=money(balance);
+  amountInput.max=balance||'';
+  amountInput.value='';
+ };
+
+ form.onsubmit=async e=>{
+  e.preventDefault();
+
+  const f=new FormData(form);
+  const amount=Number(f.get('amount'));
+  const balance=Number(installmentSelect.selectedOptions[0]?.dataset.balance||0);
+
+  if(!f.get('loan_id')||!f.get('installment_id')){
+   $('collectionMsg').textContent='Select a loan and installment.';
+   return;
+  }
+
+  if(amount<=0||amount>balance){
+   $('collectionMsg').textContent='Enter an amount within the outstanding installment balance.';
+   return;
+  }
+
+  if(!confirm('Confirm that GORA has received KSh '+amount.toLocaleString('en-KE')+' from this borrower?')){
+   return;
+  }
+
+  const msg=$('collectionMsg');
+  msg.textContent='Recording payment...';
+
+  try{
+   const result=await safe(db.rpc('gora_record_repayment',{
+    p_loan_id:f.get('loan_id'),
+    p_installment_id:f.get('installment_id'),
+    p_amount:amount,
+    p_payment_method:f.get('payment_method'),
+    p_payment_date:new Date(f.get('payment_date')).toISOString(),
+    p_notes:f.get('notes').trim()||null
+   }));
+
+   const receipt=Array.isArray(result.data)?result.data[0]:result.data;
+
+   if(!receipt?.receipt_number){
+    throw new Error('Payment response did not contain a receipt number. Contact the administrator before retrying.');
+   }
+
+   $('collectionReceipt').innerHTML=`
+    <div class="panel">
+     <h3>GORA payment receipt</h3>
+     <h2>${esc(receipt.receipt_number)}</h2>
+     <div class="metric-line"><span>Borrower</span><b>${esc(memberMap[f.get('member_id')]?.full_name||'')}</b></div>
+     <div class="metric-line"><span>Amount received</span><b>${money(amount)}</b></div>
+     <div class="metric-line"><span>Payment method</span><b>${esc(f.get('payment_method'))}</b></div>
+     <div class="metric-line"><span>Remaining installment balance</span><b>${money(receipt.remaining_balance)}</b></div>
+     <p>Thank you for paying GORA Savings & Credit Group.</p>
+     <button class="secondary" onclick="window.print()">Print receipt</button>
+    </div>`;
+
+   alert('Payment recorded successfully. Receipt: '+receipt.receipt_number);
+   await collectionsPage(c);
+
+  }catch(err){
+   msg.textContent='Payment not confirmed: '+(err.message||String(err));
+  }
+ };
+}
 async function performancePage(c){
  const [groups,links,savings,repays,loans]=await Promise.all([
  safe(db.from('chamas').select('id,name,weekly_savings_target,status').eq('status','active')),
@@ -387,7 +605,7 @@ async function performancePage(c){
 }
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
-async function load(page){$('title').textContent=page;const c=$('content');c.innerHTML='<div class="panel">Loading records…</div>';try{if(page==='Dashboard'){await dashboard(c);return}if(page==='Chamas'){await chamaPage(c);return}if(page==='Members'){await (window.membersPage||membersPage)(c);return};if(page==='Applications'){await applicationsPage(c);return}if(page==='Performance'){await performancePage(c);return}if(page==='Settings'){c.innerHTML='<div class="panel"><h3>System settings</h3><p>Loan product rates and fees must be administered by the GORA admin only. Configuration controls will be enabled after permission policies are verified.</p></div>';return}
+async function load(page){$('title').textContent=page;const c=$('content');c.innerHTML='<div class="panel">Loading records…</div>';try{if(page==='Dashboard'){await dashboard(c);return}if(page==='Chamas'){await chamaPage(c);return}if(page==='Members'){await (window.membersPage||membersPage)(c);return};if(page==='Applications'){await applicationsPage(c);return}if(page==='Performance'){await performancePage(c);return}if(page==='Repayments'){await collectionsPage(c);return}if(page==='Settings'){c.innerHTML='<div class="panel"><h3>System settings</h3><p>Loan product rates and fees must be administered by the GORA admin only. Configuration controls will be enabled after permission policies are verified.</p></div>';return}
 const [tbl,cols]=pages[page]||['audit_logs',['action','table_name','record_id','created_at']];let q=db.from(tbl).select('*').limit(100);if(page==='Arrears')q=q.lt('due_date',new Date().toISOString().slice(0,10)).gt('balance',0);const res=await safe(q);let rows=res.data||[];if(page==='Expenses')rows=rows.filter(x=>x.entry_type==='expense');c.innerHTML=`<div class="page-heading"><div><h2>${page}</h2><div class="sub">Showing up to 100 records from the connected GORA database.</div></div></div><div class="notice">This section is currently connected for viewing. Data-entry, approval and payment actions will be enabled only after their database security and audit controls are completed.</div>${table(page,cols,rows)}`;}
 catch(e){c.innerHTML=`<div class="panel"><h3>Could not load ${page}</h3><p>${String(e.message||e)}</p><p>Database access policies or the required view may not yet be configured. No data has been changed.</p></div>`}}
 (function(){const u=localStorage.getItem('gora_url')||'',k=localStorage.getItem('gora_key')||'';$('url').value=u;$('key').value=k;connect();})();
