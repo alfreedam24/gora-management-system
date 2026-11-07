@@ -364,15 +364,22 @@ async function applicationsPage(c){
 }
 
 async function collectionsPage(c){
- const [loansRes,membersRes,paymentsRes]=await Promise.all([
+  const [loansRes,membersRes,paymentsRes,savingsRes,linksRes,chamasRes]=await Promise.all([
   safe(db.from('loans').select('id,member_id,status,disbursement_date,principal,total_payable').not('disbursement_date','is',null).in('status',['approved','active'])),
   safe(db.from('members').select('id,full_name,member_number,phone')),
-  safe(db.from('repayments').select('id,loan_id,amount,payment_date,payment_method,receipt_number,notes').order('payment_date',{ascending:false}).limit(100))
+  safe(db.from('repayments').select('id,loan_id,amount,payment_date,payment_method,receipt_number,notes').order('payment_date',{ascending:false}).limit(100)),
+  safe(db.from('savings_transactions').select('id,member_id,chama_id,amount,transaction_date,payment_method,reference,receipt_number,notes').order('transaction_date',{ascending:false}).limit(100)),
+  safe(db.from('chama_members').select('member_id,chama_id,status')),
+  safe(db.from('chamas').select('id,name').eq('status','active'))
  ]);
 
  const loans=loansRes.data||[];
  const members=membersRes.data||[];
  const payments=paymentsRes.data||[];
+ const savings=savingsRes.data||[];
+const chamaLinks=linksRes.data||[];
+const activeChamas=chamasRes.data||[];
+const chamaMap=Object.fromEntries(activeChamas.map(x=>[x.id,x.name]));
  const memberMap=Object.fromEntries(members.map(m=>[m.id,m]));
  const money=n=>cash(n);
 
@@ -449,7 +456,54 @@ async function collectionsPage(c){
    </div>
   </form>
  </div>
+<div class="panel">
+ <h3>Record a savings deposit</h3>
+ <form id="savingsForm" class="grid-two">
 
+  <label>Member name
+   <select name="member_id" id="savingsMember" required>
+    <option value="">Select member</option>
+    ${members.map(m=>`<option value="${m.id}">${esc(m.full_name)} — ${esc(m.member_number||'')}</option>`).join('')}
+   </select>
+  </label>
+
+  <label>Chama (optional)
+   <select name="chama_id" id="savingsChama">
+    <option value="">No chama</option>
+    ${activeChamas.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}
+   </select>
+  </label>
+
+  <label>Amount (KSh)
+   <input name="amount" type="number" min="1" step="1" required>
+  </label>
+
+  <label>Payment method
+   <select name="payment_method" required>
+    <option value="Cash">Cash</option>
+    <option value="M-Pesa">M-Pesa</option>
+    <option value="Bank Transfer">Bank Transfer</option>
+   </select>
+  </label>
+
+  <label>Date and time received
+   <input name="transaction_date" type="datetime-local" required>
+  </label>
+
+  <label>M-Pesa reference
+   <input name="reference" maxlength="100" placeholder="Optional">
+  </label>
+
+  <label class="full">Notes
+   <textarea name="notes" maxlength="500"></textarea>
+  </label>
+
+  <div>
+   <button class="primary" type="submit">Record savings</button>
+   <p id="savingsMsg" class="message"></p>
+  </div>
+ </form>
+</div>
  <div id="collectionReceipt"></div>
 
  ${table('Recent collections',
@@ -471,7 +525,20 @@ async function collectionsPage(c){
  const installmentSelect=$('collectionInstallment');
  const balanceInput=$('collectionBalance');
  const amountInput=$('collectionAmount');
-
+const savingsForm=$('savingsForm');
+const savingsMember=$('savingsMember');
+const savingsChama=$('savingsChama');
+const savingsMsg=$('savingsMsg');
+ savingsMember.onchange=()=>{
+ const memberId=savingsMember.value;
+ const links=chamaLinks.filter(x=>x.member_id===memberId&&x.status==='active');
+ const chamaIds=[...new Set(links.map(x=>x.chama_id))];
+ savingsChama.innerHTML='<option value="">Select chama (optional)</option>'+
+  chamaIds.map(id=>`<option value="${id}">${esc(chamaMap[id]||'Chama')}</option>`).join('');
+};
+ const savingsDateInput=savingsForm.elements.transaction_date;
+const localNow=new Date();
+savingsDateInput.value=new Date(localNow.getTime()-localNow.getTimezoneOffset()*60000).toISOString().slice(0,16);
  form.elements.payment_date.value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
 
  memberSelect.onchange=()=>{
@@ -582,7 +649,73 @@ $('collectionReceipt').innerHTML=savedReceipt;
   }catch(err){
    msg.textContent='Payment not confirmed: '+(err.message||String(err));
   }
- };
+ };savingsForm.onsubmit=async e=>{
+ e.preventDefault();
+ const f=new FormData(savingsForm);
+ const memberId=f.get('member_id');
+ const amount=Number(f.get('amount'));
+ const method=f.get('payment_method');
+ const msg=savingsMsg;
+
+ if(!memberId||!Number.isFinite(amount)||amount<=0){
+  msg.textContent='Select a member and enter a valid amount.';
+  return;
+ }
+
+ if(method==='M-Pesa'&&!String(f.get('reference')||'').trim()){
+  msg.textContent='Enter the M-Pesa reference.';
+  return;
+ }
+
+ if(!confirm('Confirm receipt of KSh '+amount.toLocaleString('en-KE')+' as member savings?'))return;
+
+ msg.textContent='Recording savings...';
+
+ try{
+  const {data:{user},error:authError}=await db.auth.getUser();
+  if(authError||!user)throw new Error('Your staff session has expired. Sign in again.');
+
+  const payload={
+   member_id:memberId,
+   chama_id:f.get('chama_id')||null,
+   transaction_type:'deposit',
+   amount,
+   transaction_date:new Date(f.get('transaction_date')).toISOString(),
+   payment_method:method,
+   reference:String(f.get('reference')||'').trim()||null,
+   notes:String(f.get('notes')||'').trim()||null,
+   recorded_by:user.id
+  };
+
+  const result=await safe(
+   db.from('savings_transactions').insert(payload)
+    .select('receipt_number,amount,transaction_date,payment_method')
+    .single()
+  );
+
+  const receipt=result.data;
+  if(!receipt?.receipt_number)throw new Error('Savings receipt was not returned.');
+
+  msg.textContent='Savings recorded successfully. Receipt: '+receipt.receipt_number;
+
+  const savedReceipt=$('collectionReceipt').innerHTML;
+  await collectionsPage(c);
+  $('collectionReceipt').innerHTML=`
+   <div class="panel">
+    <h3>GORA Savings Receipt</h3>
+    <h2>${esc(receipt.receipt_number)}</h2>
+    <p>Member: ${esc(memberMap[memberId]?.full_name||'Member')}</p>
+    <p>Amount received: <b>${cash(receipt.amount)}</b></p>
+    <p>Payment method: ${esc(receipt.payment_method)}</p>
+    <p>Thank you for saving with GORA Savings & Credit Group.</p>
+    <button class="secondary" onclick="window.print()">Print receipt</button>
+   </div>`;
+
+  savingsMsg.textContent='Savings recorded successfully. Receipt: '+receipt.receipt_number;
+ }catch(err){
+  msg.textContent='Savings not confirmed: '+(err.message||String(err));
+ }
+};
 }
 async function performancePage(c){
  const [groups,links,savings,repays,loans]=await Promise.all([
