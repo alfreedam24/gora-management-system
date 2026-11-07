@@ -462,7 +462,7 @@ async function collectionsPage(c){
   payment_date:p.payment_date?new Date(p.payment_date).toLocaleString('en-KE'):'—',
   recorded_by:'GORA staff'
  }))
- ))}
+ )}
  `;
 
  const form=$('collectionForm');
