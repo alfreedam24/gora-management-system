@@ -87,31 +87,236 @@ const pages={
  'Reports':['loan_balances',['loan_id','member_id','principal','interest_amount','total_payable','amount_paid','outstanding_balance','status']]
 };
 async function chamaPage(c){
- const [groups,members]=await Promise.all([
+ const [groups,links,savings,loans]=await Promise.all([
   safe(db.from('chamas').select('id,name,location,meeting_day,meeting_frequency,weekly_savings_target,status,created_at').order('created_at',{ascending:false})),
-  safe(db.from('members').select('id,member_number,full_name,phone,status').order('full_name'))
+  safe(db.from('chama_members').select('chama_id,member_id,status')),
+  safe(db.from('savings_transactions').select('chama_id,transaction_type,amount,transaction_date')),
+  safe(db.from('loans').select('id,member_id,principal,total_payable,status,disbursement_date'))
  ]);
- const groupRows=groups.data||[], memberRows=members.data||[];
- c.innerHTML=`<div class="page-heading"><div><h2>Chama management</h2><div class="sub">Create groups and organise registered GORA members.</div></div><button class="primary" id="newChama">＋ Add new chama</button></div>
- <div class="grid-two"><div class="panel"><h3>Register a chama</h3><form id="chamaForm">
- <label>Chama name<input name="name" required maxlength="100" placeholder="e.g. Mtondia Women Group"></label>
- <label>Location<input name="location" required maxlength="120" placeholder="e.g. Mtondia, Kilifi"></label>
- <label>Meeting day<input name="meeting_day" placeholder="e.g. Friday"></label>
- <label>Meeting frequency<select name="meeting_frequency"><option value="weekly">Weekly</option><option value="biweekly">Every two weeks</option><option value="monthly">Monthly</option></select></label>
- <label>Weekly savings target per member (KSh)<input name="weekly_savings_target" type="number" min="1" step="1" value="100" required></label>
- <label>Group status<select name="status"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
- <button class="primary" type="submit">Save chama</button><p id="chamaMsg" class="message"></p></form></div>
- <div class="panel"><h3>Add registered member to a chama</h3><form id="joinForm">
- <label>Select chama<select name="chama_id" required><option value="">Choose chama</option>${groupRows.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></label>
- <label>Select registered member<select name="member_id" required><option value="">Choose member</option>${memberRows.filter(m=>m.status==='active').map(m=>`<option value="${m.id}">${esc(m.full_name)} — ${esc(m.member_number||m.phone||'')}</option>`).join('')}</select></label>
- <label>Date joined<input name="date_joined" type="date" value="${new Date().toISOString().slice(0,10)}" required></label>
- <button class="primary" type="submit">Add member to chama</button><p id="joinMsg" class="message"></p></form>
- <p class="hint">Only active members already registered in the GORA Members Registry appear here.</p></div></div>
- ${table('Registered chamas',['name','location','meeting_day','meeting_frequency','weekly_savings_target','status'],groupRows.map(g=>({...g,weekly_savings_target:cash(g.weekly_savings_target??100),status:g.status||'active'})))}
- <div class="notice">Creating chamas and assigning members requires the correct Supabase row-level security policies. If saving is denied, no record has been added; the database administrator must apply the accompanying policy script.</div>`;
- $('newChama').onclick=()=>$('chamaForm').scrollIntoView({behavior:'smooth',block:'center'});
- $('chamaForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const row={name:f.get('name').trim(),location:f.get('location').trim(),meeting_day:f.get('meeting_day').trim()||null,meeting_frequency:f.get('meeting_frequency'),weekly_savings_target:Number(f.get('weekly_savings_target')||100),status:f.get('status')};const msg=$('chamaMsg');try{await safe(db.from('chamas').insert(row));msg.textContent='Chama saved successfully.';await chamaPage(c)}catch(err){msg.textContent='Could not save: '+(err.message||err);}};
- $('joinForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const row={chama_id:f.get('chama_id'),member_id:f.get('member_id'),date_joined:f.get('date_joined'),status:'active'};const msg=$('joinMsg');try{await safe(db.from('chama_members').insert(row));msg.textContent='Member added to chama successfully.';await chamaPage(c)}catch(err){msg.textContent='Could not add member: '+(err.message||err);}};
+
+ const gs=groups.data||[];
+ const ls=links.data||[];
+ const sv=savings.data||[];
+ const ln=loans.data||[];
+
+ const activeLinks=ls.filter(x=>x.status==='active');
+ const totalMembers=new Set(activeLinks.map(x=>x.member_id)).size;
+ const totalSavings=sv.reduce((sum,x)=>{
+  const type=String(x.transaction_type||'').toLowerCase();
+  const amount=Number(x.amount||0);
+  return sum+(type.includes('withdraw')?-amount:amount);
+ },0);
+
+ const activeLoans=ln.filter(x=>x.disbursement_date&&
+  !['completed','closed','defaulted','written_off'].includes(String(x.status||'').toLowerCase())
+ );
+
+ c.innerHTML=`
+ <div class="page-heading">
+  <div>
+   <h2>Chama Portfolio</h2>
+   <div class="sub">Institutional overview of GORA groups and their financial activity.</div>
+  </div>
+  <button class="primary" id="newChama">＋ Add new chama</button>
+ </div>
+
+ <div class="stats">
+  ${stat('Total chamas',gs.length,'All registered groups','blue')}
+  ${stat('Active chamas',gs.filter(g=>g.status==='active').length,'Currently active','good')}
+  ${stat('Group members',totalMembers,'Active chama memberships','blue')}
+  ${stat('Recorded savings',cash(totalSavings),'Net recorded transactions','good')}
+  ${stat('Active loans',activeLoans.length,'Loans linked to members','warn')}
+ </div>
+
+ <div class="notice">
+  Savings are calculated from recorded chama transactions. Member savings remain separate from GORA operational funds. Figures depend on complete and correctly classified records.
+ </div>
+
+ <div class="panel">
+  <h3>Registered chama groups</h3>
+  <div class="sub">Select a group to inspect its members and financial records.</div>
+  <div class="chama-portfolio-list">
+   ${gs.length?gs.map(g=>{
+    const members=activeLinks.filter(x=>x.chama_id===g.id);
+    const memberIds=members.map(x=>x.member_id);
+    const groupSavings=sv.filter(x=>x.chama_id===g.id).reduce((sum,x)=>{
+     const type=String(x.transaction_type||'').toLowerCase();
+     const amount=Number(x.amount||0);
+     return sum+(type.includes('withdraw')?-amount:amount);
+    },0);
+    const groupLoans=ln.filter(x=>memberIds.includes(x.member_id)&&x.disbursement_date);
+    return `
+     <div class="panel chama-card">
+      <div class="page-heading">
+       <div>
+        <h3>${esc(g.name)}</h3>
+        <div class="sub">${esc(g.location||'Location not recorded')}</div>
+       </div>
+       <span class="pill">${esc(g.status||'Unknown')}</span>
+      </div>
+      <div class="metric-line"><span>Active members</span><b>${members.length}</b></div>
+      <div class="metric-line"><span>Recorded net savings</span><b>${cash(groupSavings)}</b></div>
+      <div class="metric-line"><span>Disbursed loans linked to members</span><b>${groupLoans.length}</b></div>
+      <div class="metric-line"><span>Meeting day</span><b>${esc(g.meeting_day||'Not set')}</b></div>
+      <button class="primary openChama" data-id="${g.id}">Open chama profile →</button>
+     </div>`;
+   }).join(''):'<p class="empty">No chamas registered yet.</p>'}
+  </div>
+ </div>
+
+ <div class="grid-two">
+  <div class="panel">
+   <h3>Register a chama</h3>
+   <form id="chamaForm">
+    <label>Chama name<input name="name" required maxlength="100"></label>
+    <label>Location<input name="location" required maxlength="120"></label>
+    <label>Meeting day<input name="meeting_day" placeholder="e.g. Friday"></label>
+    <label>Meeting frequency
+     <select name="meeting_frequency">
+      <option value="weekly">Weekly</option>
+      <option value="biweekly">Every two weeks</option>
+      <option value="monthly">Monthly</option>
+     </select>
+    </label>
+    <label>Weekly savings target per member (KSh)
+     <input name="weekly_savings_target" type="number" min="1" value="100" required>
+    </label>
+    <label>Status
+     <select name="status">
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+     </select>
+    </label>
+    <button class="primary" type="submit">Save chama</button>
+    <p id="chamaMsg" class="message"></p>
+   </form>
+  </div>
+
+  <div class="panel">
+   <h3>Add member to a chama</h3>
+   <form id="joinForm">
+    <label>Select chama
+     <select name="chama_id" required>
+      <option value="">Choose chama</option>
+      ${gs.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}
+     </select>
+    </label>
+    <label>Select member
+     <select name="member_id" required>
+      <option value="">Choose member</option>
+     </select>
+    </label>
+    <label>Date joined
+     <input name="date_joined" type="date" value="${new Date().toISOString().slice(0,10)}" required>
+    </label>
+    <button class="primary" type="submit">Add member</button>
+    <p id="joinMsg" class="message"></p>
+   </form>
+  </div>
+ </div>`;
+
+ $('newChama').onclick=()=>$('chamaForm').scrollIntoView({behavior:'smooth'});
+
+ const memberOptions=await safe(
+  db.from('members').select('id,full_name,member_number,status').order('full_name')
+ );
+
+ const availableMembers=(memberOptions.data||[]).filter(m=>m.status==='active');
+
+ $('joinForm').elements.member_id.innerHTML=
+  '<option value="">Choose member</option>'+
+  availableMembers.map(m=>
+   `<option value="${m.id}">${esc(m.full_name)} — ${esc(m.member_number||'')}</option>`
+  ).join('');
+
+ $('chamaForm').onsubmit=async e=>{
+  e.preventDefault();
+  const f=new FormData(e.target);
+  const msg=$('chamaMsg');
+  try{
+   await safe(db.from('chamas').insert({
+    name:f.get('name').trim(),
+    location:f.get('location').trim(),
+    meeting_day:f.get('meeting_day').trim()||null,
+    meeting_frequency:f.get('meeting_frequency'),
+    weekly_savings_target:Number(f.get('weekly_savings_target')),
+    status:f.get('status')
+   }));
+   alert('Chama registered successfully.');
+   await chamaPage(c);
+  }catch(err){
+   msg.textContent='Could not save chama: '+(err.message||err);
+  }
+ };
+
+ $('joinForm').onsubmit=async e=>{
+  e.preventDefault();
+  const f=new FormData(e.target);
+  const msg=$('joinMsg');
+  try{
+   await safe(db.from('chama_members').insert({
+    chama_id:f.get('chama_id'),
+    member_id:f.get('member_id'),
+    date_joined:f.get('date_joined'),
+    status:'active'
+   }));
+   alert('Member added to chama successfully.');
+   await chamaPage(c);
+  }catch(err){
+   msg.textContent='Could not add member: '+(err.message||err);
+  }
+ };
+
+ document.querySelectorAll('.openChama').forEach(btn=>{
+  btn.onclick=async()=>{
+   const id=btn.dataset.id;
+   const group=gs.find(g=>g.id===id);
+   const memberIds=activeLinks.filter(x=>x.chama_id===id).map(x=>x.member_id);
+
+   const [memberData,savingData]=await Promise.all([
+    memberIds.length?
+     safe(db.from('members').select('id,member_number,full_name,phone,status').in('id',memberIds)):
+     Promise.resolve({data:[]}),
+    safe(db.from('savings_transactions').select('transaction_type,amount,transaction_date,reference').eq('chama_id',id).order('transaction_date',{ascending:false}))
+   ]);
+
+   const groupLoans=ln.filter(x=>memberIds.includes(x.member_id)&&x.disbursement_date);
+
+   c.innerHTML=`
+    <div class="page-heading">
+     <div>
+      <h2>${esc(group.name)}</h2>
+      <div class="sub">${esc(group.location||'Location not recorded')}</div>
+     </div>
+     <button class="primary" id="backChamas">← Back to portfolio</button>
+    </div>
+
+    <div class="stats">
+     ${stat('Active members',memberIds.length,'Current group membership','blue')}
+     ${stat('Savings transactions',savingData.data.length,'Recorded entries','good')}
+     ${stat('Disbursed loans',groupLoans.length,'Linked to group members','warn')}
+    </div>
+
+    <div class="panel">
+     <h3>Group information</h3>
+     <div class="metric-line"><span>Meeting day</span><b>${esc(group.meeting_day||'Not set')}</b></div>
+     <div class="metric-line"><span>Meeting frequency</span><b>${esc(group.meeting_frequency||'Not set')}</b></div>
+     <div class="metric-line"><span>Weekly savings target per member</span><b>${cash(group.weekly_savings_target)}</b></div>
+     <div class="metric-line"><span>Group status</span><b>${esc(group.status)}</b></div>
+    </div>
+
+    ${table('Chama members',['member_number','full_name','phone','status'],memberData.data||[])}
+    ${table('Group savings transactions',['transaction_type','amount','transaction_date','reference'],
+     (savingData.data||[]).map(x=>({...x,amount:cash(x.amount),transaction_date:x.transaction_date?new Date(x.transaction_date).toLocaleDateString():'—'}))
+    )}
+    ${table('Loans linked to group members',['member_id','principal','total_payable','status'],
+     groupLoans.map(x=>({...x,principal:cash(x.principal),total_payable:cash(x.total_payable)}))
+    )}
+   `;
+
+   $('backChamas').onclick=()=>chamaPage(c);
+  };
+ });
 }
 
 async function membersPage(c){
