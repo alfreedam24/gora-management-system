@@ -1207,7 +1207,7 @@ async function goraOnlineSigningPage(c) {
               </div>
             `).join('')}
           `;
-
+c.querySelector('.issueSignLinks[data-id="' + id + '"]').disabled = false;
           alert('Guarantors loaded. Review the names and shares.');
 
         } catch (err) {
