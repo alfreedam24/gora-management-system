@@ -1026,8 +1026,288 @@ async function goraLoans(c) {
   }
 }
 
+/* GORA ONLINE LOAN SIGNING */
+async function goraOnlineSigningPage(c) {
+  try {
+    const [apps, members, products, chamas, guarantors, signatures] =
+      await Promise.all([
+        safe(db.from('loan_applications').select('*')
+          .order('applied_at', {ascending:false}).limit(100)),
+        safe(db.from('members').select('id,full_name,phone,national_id,status')
+          .order('full_name')),
+        safe(db.from('loan_products').select('id,name')
+          .eq('active',true)),
+        safe(db.from('chamas').select('id,name')
+          .eq('status','active').order('name')),
+        safe(db.from('loan_guarantors').select('*')),
+        safe(db.from('loan_signature_events').select('*'))
+      ]);
+
+    const memberMap = Object.fromEntries(
+      members.data.map(m => [m.id,m])
+    );
+    const productMap = Object.fromEntries(
+      products.data.map(p => [p.id,p])
+    );
+
+    c.innerHTML = `
+      <div class="page-heading">
+        <div>
+          <h2>Online Loan Signing</h2>
+          <div class="sub">
+            Borrower and chama guarantor signatures
+          </div>
+        </div>
+      </div>
+
+      <div class="notice">
+        Every active chama member except the borrower
+        will be included as a guarantor. Each guarantor
+        receives an equal share of the loan guarantee.
+        Review all names before issuing links.
+      </div>
+
+      ${apps.data.map(a => {
+        const borrower = memberMap[a.member_id] || {};
+        const product = productMap[a.product_id] || {};
+        const gs = guarantors.data.filter(
+          g => g.application_id === a.id
+        );
+        const signed = signatures.data.filter(
+          s => s.application_id === a.id
+        );
+
+        return `
+          <div class="panel" style="margin-bottom:16px">
+            <h3>${esc(borrower.full_name || 'Borrower')}</h3>
+            <p>Loan: ${esc(product.name || 'Loan')}</p>
+            <p>Amount: ${cash(a.approved_amount || a.requested_amount)}</p>
+            <p>Status: ${esc(a.status)}</p>
+            <p>Guarantors: ${gs.length}</p>
+            <p>Signatures received: ${signed.length}</p>
+
+            <label>Select chama
+              <select class="signChama" data-id="${a.id}">
+                <option value="">Choose chama</option>
+                ${chamas.data.map(g =>
+                  `<option value="${g.id}"
+                    ${a.chama_id === g.id ? 'selected' : ''}>
+                    ${esc(g.name)}
+                  </option>`
+                ).join('')}
+              </select>
+            </label>
+
+            <button class="secondary prepareSigners"
+              data-id="${a.id}">
+              Load chama members
+            </button>
+
+            <div id="signReview-${a.id}"></div>
+
+            <button class="primary issueSignLinks"
+              data-id="${a.id}" ${gs.length ? '' : 'disabled'}>
+              Issue signing links
+            </button>
+
+            <div id="signLinks-${a.id}"></div>
+          </div>
+        `;
+      }).join('') || '<p>No applications found.</p>'}
+    `;
+
+    c.querySelectorAll('.prepareSigners').forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.id;
+        const chamaId = c.querySelector(
+          `.signChama[data-id="${id}"]`
+        ).value;
+
+        if (!chamaId) {
+          alert('Please select a chama first.');
+          return;
+        }
+
+        btn.disabled = true;
+
+        try {
+          const app = apps.data.find(x => x.id === id);
+
+          const [roster, existing] = await Promise.all([
+            safe(db.from('chama_members')
+              .select('member_id')
+              .eq('chama_id', chamaId)
+              .eq('status', 'active')),
+            safe(db.from('loan_guarantors')
+              .select('guarantor_member_id')
+              .eq('application_id', id))
+          ]);
+
+          const existingIds = new Set(
+            existing.data.map(x => x.guarantor_member_id)
+          );
+
+          const eligibleIds = [
+            ...new Set(roster.data.map(x => x.member_id))
+          ].filter(x => x && x !== app.member_id);
+
+          const eligible = eligibleIds
+            .map(x => memberMap[x])
+            .filter(m => m && m.status === 'active' && m.phone);
+
+          if (!eligible.length) {
+            throw new Error(
+              'No eligible active chama members with phone numbers found.'
+            );
+          }
+
+          const newRows = eligible
+            .filter(m => !existingIds.has(m.id))
+            .map(m => ({
+              application_id: id,
+              guarantor_member_id: m.id,
+              full_name: m.full_name,
+              phone: m.phone,
+              national_id: m.national_id || null,
+              relationship: 'chama member',
+              guarantee_amount: 0,
+              consent_status: 'pending'
+            }));
+
+          if (newRows.length) {
+            await safe(db.from('loan_guarantors').insert(newRows));
+          }
+
+          await safe(db.from('loan_applications')
+            .update({chama_id: chamaId})
+            .eq('id', id));
+
+          const result = await safe(db.from('loan_guarantors')
+            .select('full_name,phone,guarantee_amount,consent_status')
+            .eq('application_id', id));
+
+          const amount = Number(
+            app.approved_amount || app.requested_amount
+          );
+
+          const share = amount / result.data.length;
+
+          const review = document.getElementById(
+            'signReview-' + id
+          );
+
+          review.innerHTML = `
+            <h3>Review guarantors</h3>
+            <p>Number of guarantors: ${result.data.length}</p>
+            <p>Equal share per guarantor: ${cash(share)}</p>
+            ${result.data.map(g => `
+              <div class="metric-line">
+                <span>${esc(g.full_name)} · ${esc(g.phone)}</span>
+                <b>${cash(share)}</b>
+              </div>
+            `).join('')}
+          `;
+
+          alert('Guarantors loaded. Review the names and shares.');
+
+        } catch (err) {
+          alert('Could not load guarantors: ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      };
+    });
+
+    c.querySelectorAll('.issueSignLinks').forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.id;
+
+        if (!confirm(
+          'Issue signing links to the borrower and all listed guarantors?'
+        )) return;
+
+        btn.disabled = true;
+        const box = document.getElementById('signLinks-' + id);
+
+        try {
+          const {data: {session}} = await db.auth.getSession();
+
+          if (!session) {
+            throw new Error('Please sign in again.');
+          }
+
+          const {data, error} = await db.functions.invoke(
+            'gora-loan-signing',
+            {
+              body: {
+                action: 'create_links',
+                application_id: id
+              },
+              headers: {
+                Authorization: 'Bearer ' + session.access_token
+              }
+            }
+          );
+
+          if (error) throw error;
+          if (!data.success) {
+            throw new Error(data.error || 'Could not issue links.');
+          }
+
+          box.innerHTML = `
+            <h3>Signing links issued</h3>
+            <p>Expiry: ${esc(data.expires_at)}</p>
+
+            ${data.signers.map(s => `
+              <div class="panel">
+                <p>${esc(s.signer_type)}: ${esc(s.name)}</p>
+                <p>${esc(s.phone)}</p>
+                <button class="secondary copySignLink"
+                  data-url="${esc(s.url)}">
+                  Copy signing link
+                </button>
+              </div>
+            `).join('')}
+
+            <p class="hint">
+              Members without smartphones can use a GORA-assisted
+              device. Each person must personally review and sign.
+            </p>
+          `;
+
+          box.querySelectorAll('.copySignLink').forEach(copy => {
+            copy.onclick = async () => {
+              try {
+                await navigator.clipboard.writeText(copy.dataset.url);
+                copy.textContent = 'Copied!';
+              } catch (err) {
+                prompt('Copy this signing link:', copy.dataset.url);
+              }
+            };
+          });
+
+          alert('Signing links created successfully.');
+
+        } catch (err) {
+          box.textContent = 'Error: ' + err.message;
+        } finally {
+          btn.disabled = false;
+        }
+      };
+    });
+
+  } catch (err) {
+    c.innerHTML = `
+      <div class="panel">
+        <h3>Signing page error</h3>
+        <p>${esc(err.message)}</p>
+      </div>
+    `;
+  }
+}
+
 load = async function(page) {
-  if (page === 'Applications') return goraOldLoad(page);
+  if (page === 'Applications') return goraOnlineSigningPage($('content'));
   if (page === 'Loans') return goraLoans($('content'));
   return goraOldLoad(page);
 };
