@@ -883,3 +883,151 @@ async function load(page){$('title').textContent=page;const c=$('content');c.inn
 const [tbl,cols]=pages[page]||['audit_logs',['action','table_name','record_id','created_at']];let q=db.from(tbl).select('*').limit(100);if(page==='Arrears')q=q.lt('due_date',new Date().toISOString().slice(0,10)).gt('balance',0);const res=await safe(q);let rows=res.data||[];if(page==='Expenses')rows=rows.filter(x=>x.entry_type==='expense');c.innerHTML=`<div class="page-heading"><div><h2>${page}</h2><div class="sub">Showing up to 100 records from the connected GORA database.</div></div></div><div class="notice">This section is currently connected for viewing. Data-entry, approval and payment actions will be enabled only after their database security and audit controls are completed.</div>${table(page,cols,rows)}`;}
 catch(e){c.innerHTML=`<div class="panel"><h3>Could not load ${page}</h3><p>${String(e.message||e)}</p><p>Database access policies or the required view may not yet be configured. No data has been changed.</p></div>`}}
 (function(){const u=localStorage.getItem('gora_url')||'',k=localStorage.getItem('gora_key')||'';$('url').value=u;$('key').value=k;connect();})();
+
+
+/* GORA LOAN WORKFLOW */
+const goraOldLoad = load;
+
+async function goraLoanApplications(c) {
+  try {
+    const [apps, members, products] = await Promise.all([
+      safe(db.from('loan_applications').select('*').order('applied_at', {ascending:false})),
+      safe(db.from('members').select('id,full_name')),
+      safe(db.from('loan_products').select('id,name,minimum_amount,maximum_amount,interest_rate').eq('active',true))
+    ]);
+
+    const names = Object.fromEntries(members.data.map(x => [x.id,x.full_name]));
+    const productMap = Object.fromEntries(products.data.map(x => [x.id,x]));
+
+    c.innerHTML = `<h2>Loan Applications</h2>
+      <div class="notice">Loan officers recommend. The administrator makes the final approval.</div>
+      ${(apps.data || []).map(a => {
+        const p = productMap[a.product_id] || {};
+        return `<div class="panel">
+          <h3>${esc(names[a.member_id] || 'Member')} — ${esc(p.name || 'Loan')}</h3>
+          <p>Requested: ${cash(a.requested_amount)}</p>
+          <p>Product rate: ${Number(p.interest_rate || 0)}% flat</p>
+          <p>Status: ${esc(a.status)} | Recommendation: ${esc(a.recommendation_status || 'awaiting_review')}</p>
+          ${['admin','loan_officer'].includes(profile.role) && a.status === 'pending' ? `
+            <form class="goraRecommend" data-id="${a.id}">
+              <label>Recommended amount
+                <input name="amount" type="number" min="${p.minimum_amount || 1}" max="${p.maximum_amount || 0}" value="${a.recommended_amount || a.requested_amount}" required>
+              </label>
+              <label>Notes<input name="notes"></label>
+              <button class="primary">Submit recommendation</button>
+              <p class="message"></p>
+            </form>` : ''}
+          ${profile.role === 'admin' && a.status === 'pending' && a.recommendation_status === 'recommended' ? `
+            <form class="goraApprove" data-id="${a.id}">
+              <label>Approved amount
+                <input name="amount" type="number" min="${p.minimum_amount || 1}" max="${p.maximum_amount || 0}" value="${a.recommended_amount}" required>
+              </label>
+              <label>Decision notes<input name="notes"></label>
+              <button class="primary">Approve loan</button>
+              <p class="message"></p>
+            </form>` : ''}
+        </div>`;
+      }).join('') || '<p>No applications found.</p>'}`;
+
+    c.querySelectorAll('.goraRecommend').forEach(f => f.onsubmit = async e => {
+      e.preventDefault();
+      const d = new FormData(f);
+      const msg = f.querySelector('.message');
+      try {
+        const r = await db.rpc('gora_recommend_loan', {
+          p_application_id:f.dataset.id,
+          p_recommended_amount:Number(d.get('amount')),
+          p_recommendation_notes:d.get('notes') || null,
+          p_recommend:true
+        });
+        if (r.error) throw r.error;
+        await goraLoanApplications(c);
+      } catch (err) { msg.textContent = err.message; }
+    });
+
+    c.querySelectorAll('.goraApprove').forEach(f => f.onsubmit = async e => {
+      e.preventDefault();
+      const d = new FormData(f);
+      const msg = f.querySelector('.message');
+      if (!confirm('Approve this loan? It will not yet be disbursed.')) return;
+      try {
+        const r = await db.rpc('gora_admin_approve_loan', {
+          p_application_id:f.dataset.id,
+          p_approved_amount:Number(d.get('amount')),
+          p_decision_notes:d.get('notes') || null
+        });
+        if (r.error) throw r.error;
+        alert('Loan approved. Awaiting disbursement.');
+        await goraLoanApplications(c);
+      } catch (err) { msg.textContent = err.message; }
+    });
+  } catch (err) {
+    c.innerHTML = `<div class="panel">Could not load applications: ${esc(err.message)}</div>`;
+  }
+}
+
+async function goraLoans(c) {
+  try {
+    const [loans, members] = await Promise.all([
+      safe(db.from('loans').select('*').order('created_at',{ascending:false})),
+      safe(db.from('members').select('id,full_name'))
+    ]);
+    const names = Object.fromEntries(members.data.map(x => [x.id,x.full_name]));
+
+    c.innerHTML = `<h2>Loans & Disbursement</h2>
+      <div class="notice">First repayment is automatically set seven days after disbursement. Confirm only after the money has actually been transferred.</div>
+      ${(loans.data || []).map(l => `<div class="panel">
+        <h3>${esc(names[l.member_id] || 'Member')}</h3>
+        <p>Principal: ${cash(l.principal)}</p>
+        <p>Total payable: ${cash(l.total_payable)}</p>
+        <p>Status: ${esc(l.status)}</p>
+        <p>Disbursement: ${esc(l.disbursement_date || 'Not yet disbursed')}</p>
+        <p>First repayment: ${esc(l.first_due_date || 'Not set')}</p>
+        ${profile.role === 'admin' && l.status === 'approved' && !l.disbursement_date ? `
+          <form class="goraDisburse" data-id="${l.id}">
+            <label>Actual disbursement date
+              <input name="date" type="date" value="${new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'})}" required>
+            </label>
+            <label>Payment channel
+              <select name="provider">
+                <option value="manual">Verified manual transfer</option>
+                <option value="mpesa">M-Pesa</option>
+                <option value="bank">Bank</option>
+                <option value="cash">Cash</option>
+              </select>
+            </label>
+            <label>Transfer reference<input name="reference" required></label>
+            <label>Notes<input name="notes"></label>
+            <button class="primary">Confirm actual disbursement</button>
+            <p class="message"></p>
+          </form>` : ''}
+      </div>`).join('') || '<p>No loans found.</p>'}`;
+
+    c.querySelectorAll('.goraDisburse').forEach(f => f.onsubmit = async e => {
+      e.preventDefault();
+      const d = new FormData(f);
+      const msg = f.querySelector('.message');
+      if (!confirm('Have you verified that the money was actually transferred?')) return;
+      try {
+        const r = await db.rpc('gora_confirm_loan_disbursement', {
+          p_loan_id:f.dataset.id,
+          p_disbursement_date:d.get('date'),
+          p_payment_provider:d.get('provider'),
+          p_provider_reference:d.get('reference'),
+          p_notes:d.get('notes') || null
+        });
+        if (r.error) throw r.error;
+        alert('Disbursement confirmed and installments generated.');
+        await goraLoans(c);
+      } catch (err) { msg.textContent = err.message; }
+    });
+  } catch (err) {
+    c.innerHTML = `<div class="panel">Could not load loans: ${esc(err.message)}</div>`;
+  }
+}
+
+load = async function(page) {
+  if (page === 'Applications') return goraLoanApplications($('content'));
+  if (page === 'Loans') return goraLoans($('content'));
+  return goraOldLoad(page);
+};
