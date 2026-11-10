@@ -1033,10 +1033,12 @@ async function goraOnlineSigningPage(c) {
       await Promise.all([
         safe(db.from('loan_applications').select('*')
           .order('applied_at', {ascending:false}).limit(100)),
-        safe(db.from('members').select('id,full_name,phone,national_id,status')
+                safe(db.from('members')
+          .select('id,member_number,full_name,phone,national_id,status')
           .order('full_name')),
-        safe(db.from('loan_products').select('id,name')
-          .eq('active',true)),
+        safe(db.from('loan_products')
+          .select('id,name,minimum_amount,maximum_amount,interest_rate,duration_days,application_fee_rate')
+          .eq('active',true).order('name')),
         safe(db.from('chamas').select('id,name')
           .eq('status','active').order('name')),
         safe(db.from('loan_guarantors').select('*')),
