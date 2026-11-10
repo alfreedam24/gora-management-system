@@ -717,6 +717,145 @@ $('collectionReceipt').innerHTML=savedReceipt;
  }
 };
 }
+
+async function collectionPlannerPage(c){
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const d=new Date(today+'T00:00:00');
+ d.setDate(d.getDate()+1);
+ const tomorrow=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+
+ try{
+  const [ir,lr,mr,cr,tr]=await Promise.all([
+   safe(db.from('installment_balances').select('installment_id,loan_id,installment_number,due_date,balance').gt('balance',0).lte('due_date',tomorrow).order('due_date')),
+   safe(db.from('loans').select('id,member_id,principal').not('disbursement_date','is',null)),
+   safe(db.from('members').select('id,full_name,phone,member_number')),
+   safe(db.from('chamas').select('id,name').eq('status','active')),
+   safe(db.from('collection_tasks').select('*').order('due_date').limit(300))
+  ]);
+
+  const loans=lr.data||[];
+  const members=mr.data||[];
+  const chamas=cr.data||[];
+  const loanMap=Object.fromEntries(loans.map(x=>[x.id,x]));
+  const memberMap=Object.fromEntries(members.map(x=>[x.id,x]));
+  const chamaMap=Object.fromEntries(chamas.map(x=>[x.id,x]));
+  const valid=(ir.data||[]).filter(x=>loanMap[x.loan_id]);
+  const todayRows=valid.filter(x=>x.due_date===today);
+  const tomorrowRows=valid.filter(x=>x.due_date===tomorrow);
+  const overdue=valid.filter(x=>x.due_date<today);
+  const total=rows=>rows.reduce((a,x)=>a+Number(x.balance||0),0);
+  const tasks=tr.data||[];
+  const admin=profile?.role==='admin';
+  let officers=[];
+
+  if(admin){
+   const staff=await safe(db.from('profiles').select('id,full_name').eq('active',true).eq('role','loan_officer').order('full_name'));
+   officers=staff.data||[];
+  }
+
+  const target=t=>t.member_id?(memberMap[t.member_id]?.full_name||'Member'):(chamaMap[t.chama_id]?.name||'Chama');
+
+  c.innerHTML=`
+  <div class="page-heading"><div><h2>Collections Planner</h2><div class="sub">Kenya date: ${today}</div></div></div>
+  <div class="stats">
+   ${stat('Due today',cash(total(todayRows)),todayRows.length+' installments','warn')}
+   ${stat('Due tomorrow',cash(total(tomorrowRows)),tomorrowRows.length+' installments','blue')}
+   ${stat('Arrears',cash(total(overdue)),overdue.length+' overdue installments','red')}
+   ${stat('Assigned tasks',tasks.length,'Collection and visit tasks','good')}
+  </div>
+  ${table('Due today',['Borrower','Phone','Due date','Balance'],todayRows.map(x=>({Borrower:esc(memberMap[loanMap[x.loan_id].member_id]?.full_name||'Unknown'),Phone:esc(memberMap[loanMap[x.loan_id].member_id]?.phone||'—'),'Due date':x.due_date,Balance:cash(x.balance)})))}
+  ${table('Due tomorrow',['Borrower','Phone','Due date','Balance'],tomorrowRows.map(x=>({Borrower:esc(memberMap[loanMap[x.loan_id].member_id]?.full_name||'Unknown'),Phone:esc(memberMap[loanMap[x.loan_id].member_id]?.phone||'—'),'Due date':x.due_date,Balance:cash(x.balance)})))}
+  ${table('Overdue installments',['Borrower','Phone','Due date','Installment','Balance'],overdue.map(x=>({Borrower:esc(memberMap[loanMap[x.loan_id].member_id]?.full_name||'Unknown'),Phone:esc(memberMap[loanMap[x.loan_id].member_id]?.phone||'—'),'Due date':x.due_date,Installment:x.installment_number,Balance:cash(x.balance)})))}
+
+  ${admin?`
+  <div class="panel"><h3>Assign a task to an officer</h3>
+  <form id="taskAssignForm" class="grid-two">
+   <label>Task type<select name="task_type">
+    <option value="installment_collection">Installment collection</option>
+    <option value="arrears_follow_up">Arrears follow-up</option>
+    <option value="chama_visit">Chama visit</option>
+   </select></label>
+   <label>Officer<select name="assigned_to" required>
+    <option value="">Choose officer</option>
+    ${officers.map(o=>`<option value="${o.id}">${esc(o.full_name)}</option>`).join('')}
+   </select></label>
+   <label>Member<select name="member_id">
+    <option value="">Choose member</option>
+    ${members.map(m=>`<option value="${m.id}">${esc(m.full_name)}</option>`).join('')}
+   </select></label>
+   <label>Chama<select name="chama_id">
+    <option value="">Choose chama</option>
+    ${chamas.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}
+   </select></label>
+   <label>Due date<input type="date" name="due_date" value="${today}" required></label>
+   <label>Expected amount<input type="number" name="expected_amount" min="0" value="0" required></label>
+   <label class="full">Instructions / location<input name="outcome_notes" maxlength="500"></label>
+   <div><button class="primary" type="submit">Assign task</button><p id="taskAssignMsg" class="message"></p></div>
+  </form></div>`:''}
+
+  <div class="panel"><h3>${admin?'Officer task register':'My assigned tasks'}</h3>
+  ${tasks.length?tasks.map(t=>`
+   <div class="panel">
+    <b>${esc(t.task_type.replaceAll('_',' '))} — ${esc(target(t))}</b>
+    <p>Due: ${esc(t.due_date)} · Status: ${esc(t.status)}</p>
+    <p>Expected: ${cash(t.expected_amount)} · Collected: ${cash(t.collected_amount)}</p>
+    <form class="taskUpdateForm grid-two" data-id="${t.id}">
+     <label>Status<select name="status">
+      ${['pending','in_progress','completed','partially_collected','not_visited'].map(v=>`<option value="${v}" ${t.status===v?'selected':''}>${v.replaceAll('_',' ')}</option>`).join('')}
+     </select></label>
+     <label>Amount collected<input name="collected_amount" type="number" min="0" step="0.01" value="${Number(t.collected_amount||0)}"></label>
+     <label class="full">Outcome notes<textarea name="outcome_notes">${esc(t.outcome_notes||'')}</textarea></label>
+     <label>Next follow-up date<input name="next_follow_up_date" type="date" value="${t.next_follow_up_date||''}"></label>
+     <div><button class="secondary" type="submit">Save outcome</button><span class="message taskMsg"></span></div>
+    </form>
+   </div>`).join(''):'<p class="empty">No tasks assigned yet.</p>'}
+  </div>
+  <div class="notice">Task outcomes do not mark loans as paid. Record actual money received through Collections & Repayments to generate an official receipt.</div>`;
+
+  const assign=document.getElementById('taskAssignForm');
+  if(assign)assign.onsubmit=async e=>{
+   e.preventDefault();
+   const f=new FormData(assign),type=f.get('task_type'),msg=document.getElementById('taskAssignMsg');
+   const memberId=f.get('member_id'),chamaId=f.get('chama_id');
+   if(type==='chama_visit'&&!chamaId){msg.textContent='Choose a chama.';return}
+   if(type!=='chama_visit'&&!memberId){msg.textContent='Choose a member.';return}
+   try{
+    const {data:{user}}=await db.auth.getUser();
+    if(!user)throw new Error('Please sign in again.');
+    await safe(db.from('collection_tasks').insert({
+     task_type:type,assigned_to:f.get('assigned_to'),
+     member_id:type==='chama_visit'?null:memberId,
+     chama_id:type==='chama_visit'?chamaId:null,
+     due_date:f.get('due_date'),
+     expected_amount:Number(f.get('expected_amount')),
+     outcome_notes:f.get('outcome_notes').trim()||null,
+     created_by:user.id
+    }));
+    await collectionPlannerPage(c);
+   }catch(err){msg.textContent='Could not assign task: '+(err.message||err)}
+  };
+
+  document.querySelectorAll('.taskUpdateForm').forEach(form=>{
+   form.onsubmit=async e=>{
+    e.preventDefault();
+    const f=new FormData(form),msg=form.querySelector('.taskMsg');
+    try{
+     await safe(db.from('collection_tasks').update({
+      status:f.get('status'),
+      collected_amount:Number(f.get('collected_amount')||0),
+      outcome_notes:f.get('outcome_notes').trim()||null,
+      next_follow_up_date:f.get('next_follow_up_date')||null,
+      updated_at:new Date().toISOString()
+     }).eq('id',form.dataset.id));
+     msg.textContent='Saved.';
+    }catch(err){msg.textContent='Not saved: '+(err.message||err)}
+   };
+  });
+ }catch(err){
+  c.innerHTML='<div class="panel"><h3>Collections Planner could not load</h3><p>'+esc(err.message||err)+'</p></div>';
+ }
+}
+
 async function performancePage(c){
  const [groups,links,savings,repays,loans]=await Promise.all([
  safe(db.from('chamas').select('id,name,weekly_savings_target,status').eq('status','active')),
