@@ -1053,10 +1053,10 @@ async function goraOnlineSigningPage(c) {
     c.innerHTML = `
       <div class="page-heading">
         <div>
-          <h2>Online Loan Signing</h2>
+          <h2>GORA Loan Applications</h2>
           <div class="sub">
-            Borrower and chama guarantor signatures
-          </div>
+  Manual applications, online applications and loan signing
+</div>
         </div>
       </div>
 
