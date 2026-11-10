@@ -1027,7 +1027,7 @@ async function goraLoans(c) {
 }
 
 load = async function(page) {
-  if (page === 'Applications') return goraLoanApplications($('content'));
+  if (page === 'Applications') return goraOldLoad(page);
   if (page === 'Loans') return goraLoans($('content'));
   return goraOldLoad(page);
 };
