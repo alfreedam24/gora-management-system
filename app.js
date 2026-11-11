@@ -1187,30 +1187,35 @@ async function goraSigningManagerPage(c) {
             .select('full_name,phone,guarantee_amount,consent_status')
             .eq('application_id', id));
 
-          const amount = Number(
-            app.approved_amount || app.requested_amount
-          );
-
-          const share = amount / result.data.length;
-
-          const review = document.getElementById(
+                    const review = document.getElementById(
             'signReview-' + id
           );
 
+          const totalGuaranteed = result.data.reduce(
+            (sum, g) => sum + Number(g.guarantee_amount || 0), 0
+          );
+
           review.innerHTML = `
-            <h3>Review guarantors</h3>
+            <h3>Review individual guarantees</h3>
             <p>Number of guarantors: ${result.data.length}</p>
-            <p>Equal share per guarantor: ${cash(share)}</p>
+            <p>Total guaranteed: ${cash(totalGuaranteed)}</p>
             ${result.data.map(g => `
               <div class="metric-line">
                 <span>${esc(g.full_name)} · ${esc(g.phone)}</span>
-                <b>${cash(share)}</b>
+                <b>${cash(g.guarantee_amount || 0)}</b>
               </div>
             `).join('')}
           `;
-c.querySelector('.issueSignLinks[data-id="' + id + '"]').disabled = false;
-          alert('Guarantors loaded. Review the names and shares.');
 
+          const loanAmount = Number(
+            app.approved_amount || app.requested_amount
+          );
+
+          const issueButton = c.querySelector(
+            '.issueSignLinks[data-id="' + id + '"]'
+          );
+
+          issueButton.disabled = totalGuaranteed < loanAmount;
         } catch (err) {
           alert('Could not load guarantors: ' + err.message);
         } finally {
