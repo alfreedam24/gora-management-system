@@ -1034,7 +1034,7 @@ async function goraSigningManagerPage(c) {
         safe(db.from('loan_applications').select('*')
           .order('applied_at', {ascending:false}).limit(100)),
                 safe(db.from('members')
-          .select('id,member_number,full_name,phone,national_id,status')
+          .select('id,member_number,full_name,phone,national_id,status,date_of_birth')
           .order('full_name')),
         safe(db.from('loan_products')
           .select('id,name,minimum_amount,maximum_amount,interest_rate,duration_days,application_fee_rate')
@@ -1158,7 +1158,8 @@ async function goraSigningManagerPage(c) {
 
           if (!eligible.length) {
             throw new Error(
-              'No active chama members found to add as guarantors.'
+              'No active chama members found to add as guarantors.');
+          }
 
           const newRows = eligible
             .filter(m => !existingIds.has(m.id))
@@ -1898,10 +1899,10 @@ c.querySelector('#addAllChamaMembers').onclick = async () => {
           if (gError) throw gError;
 
           for (const [type, file] of [
-            ['photo', g.gphoto.files[0]],
-            ['id_front', g.gidfront.files[0]],
-            ['id_back', g.gidback.files[0]]
-          ]) {
+  ['photo', g.gphoto.files[0]],
+  ['national_id_front', g.gidfront.files[0]],
+  ['national_id_back', g.gidback.files[0]]
+]) {
             const path = `applications/${applicationId}/guarantors/${guarantor.id}/${type}_${Date.now()}`;
             const up = await db.storage.from('member-documents').upload(path, file);
             if (up.error) throw up.error;
