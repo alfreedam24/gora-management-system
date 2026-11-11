@@ -1061,13 +1061,12 @@ async function goraSigningManagerPage(c) {
 </div>
         </div>
       </div>
-
-      <div class="notice">
-        Every active chama member except the borrower
-        will be included as a guarantor. Each guarantor
-        receives an equal share of the loan guarantee.
-        Review all names before issuing links.
-      </div>
+<div class="notice">
+  Every active chama member except the borrower
+  must be included as a proposed guarantor.
+  Each guarantor must agree to their own guarantee amount.
+  Verify all guarantors before issuing signing links.
+</div>
 
       ${apps.data.map(a => {
         const borrower = memberMap[a.member_id] || {};
