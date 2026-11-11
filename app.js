@@ -1154,13 +1154,11 @@ async function goraSigningManagerPage(c) {
 
           const eligible = eligibleIds
             .map(x => memberMap[x])
-            .filter(m => m && m.status === 'active' && m.phone);
+            .filter(m => m && m.status === 'active');
 
           if (!eligible.length) {
             throw new Error(
-              'No eligible active chama members with phone numbers found.'
-            );
-          }
+              'No active chama members found to add as guarantors.'
 
           const newRows = eligible
             .filter(m => !existingIds.has(m.id))
