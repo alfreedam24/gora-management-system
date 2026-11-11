@@ -1027,7 +1027,7 @@ async function goraLoans(c) {
 }
 
 /* GORA ONLINE LOAN SIGNING */
-async function goraOnlineSigningPage(c) {
+async function goraSigningManagerPage(c) {
   try {
     const [apps, members, products, chamas, guarantors, signatures] =
       await Promise.all([
@@ -1305,6 +1305,670 @@ c.querySelector('.issueSignLinks[data-id="' + id + '"]').disabled = false;
         <p>${esc(err.message)}</p>
       </div>
     `;
+  }
+}
+
+async function goraOnlineSigningPage(c) {
+  try {
+    const [members, products, chamas] = await Promise.all([
+      safe(db.from('members').select('id,member_number,full_name,phone,national_id,status').order('full_name')),
+      safe(db.from('loan_products').select('*').eq('active', true).order('name')),
+      safe(db.from('chamas').select('id,name').eq('status', 'active').order('name'))
+    ]);
+
+    const ms = members.data || [];
+    const ps = products.data || [];
+    const cs = chamas.data || [];
+
+    c.innerHTML = `
+      <div class="page-heading">
+        <div>
+          <h2>GORA Loan Application</h2>
+          <div class="sub">Complete borrower registration, assessment and guarantor details.</div>
+        </div>
+        <button class="secondary" id="openSigningManager">Signing Manager</button>
+      </div>
+
+      <div class="notice">
+        Applications remain pending until documents are reviewed, guarantors are verified,
+        and the authorised officer completes the approval process.
+      </div>
+
+      <form id="goraNewApplication">
+        <div class="panel">
+          <h3>1. Borrower details</h3>
+          <label>GORA member
+            <select name="member_id" required>
+              <option value="">Select borrower</option>
+              ${ms.filter(m=>m.status==='active').map(m=>`
+                <option value="${m.id}">${esc(m.member_number)} - ${esc(m.full_name)} (${esc(m.phone)})</option>
+              `).join('')}
+            </select>
+          </label>
+          <label>Chama (if applicable)
+            <select name="chama_id">
+              <option value="">Individual / No chama</option>
+              ${cs.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}
+            </select>
+          </label>
+<button type="button" class="secondary" id="addAllChamaMembers">
+  Add all chama members as guarantors
+</button>
+
+          <label>Preferred disbursement method
+            <select name="disbursement">
+              <option value="mpesa">M-Pesa</option>
+              <option value="bank">Bank</option>
+              <option value="cash">Cash</option>
+            </select>
+          </label>
+          <p class="hint">The borrower must be a registered GORA member.</p>
+        </div>
+
+        <div class="panel">
+          <h3>2. Loan details</h3>
+          <label>Loan product
+            <select name="product_id" id="goraProduct" required>
+              <option value="">Select loan product</option>
+              ${ps.map(p=>`
+                <option value="${p.id}" data-min="${p.minimum_amount}"
+                  data-max="${p.maximum_amount}" data-rate="${p.interest_rate}"
+                  data-days="${p.duration_days}" data-fee="${p.application_fee_rate}">
+                  ${esc(p.name)} (${cash(p.minimum_amount)} - ${cash(p.maximum_amount)})
+                </option>
+              `).join('')}
+            </select>
+          </label>
+          <label>Requested amount (KSh)
+            <input name="amount" type="number" min="1" step="1" required>
+          </label>
+          <label>Interest rate (%)
+            <input name="rate" type="number" min="0" step="0.01" required>
+          </label>
+          <label>Duration (days)
+            <input name="duration" type="number" min="1" required>
+          </label>
+          <label>Repayment frequency
+            <select name="frequency" required>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Biweekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
+          <label>Application fee (KSh)
+            <input name="fee" type="number" min="0" step="0.01" value="0">
+          </label>
+          <label>Loan purpose
+            <textarea name="purpose" required rows="3"></textarea>
+          </label>
+        </div>
+
+        <div class="panel">
+          <h3>3. Employment and business information</h3>
+          <label>Employment status
+            <select name="employment">
+              <option value="self_employed">Self-employed</option>
+              <option value="employed">Employed</option>
+              <option value="business_owner">Business owner</option>
+              <option value="casual">Casual worker</option>
+              <option value="unemployed">Unemployed</option>
+            </select>
+          </label>
+          <label>Occupation
+            <input name="occupation">
+          </label>
+          <label>Employer name
+            <input name="employer">
+          </label>
+          <label>Business name
+            <input name="business_name">
+          </label>
+          <label>Business type
+            <input name="business_type">
+          </label>
+          <label>Business location
+            <input name="business_location">
+          </label>
+          <label>Business age (months)
+            <input name="business_age" type="number" min="0">
+          </label>
+          <label>Monthly salary income (KSh)
+            <input name="salary" type="number" min="0" value="0">
+          </label>
+          <label>Monthly business income (KSh)
+            <input name="business_income" type="number" min="0" value="0">
+          </label>
+          <label>Other income description
+            <input name="other_income_description">
+          </label>
+          <label>Other monthly income (KSh)
+            <input name="other_income" type="number" min="0" value="0">
+          </label>
+        </div>
+
+        <div class="panel">
+          <h3>4. Financial assessment</h3>
+          <label>Monthly income (KSh)
+            <input name="monthly_income" type="number" min="0" required>
+          </label>
+          <label>Monthly expenses (KSh)
+            <input name="expenses" type="number" min="0" required>
+          </label>
+          <label>Existing loan balance (KSh)
+            <input name="existing_balance" type="number" min="0" value="0">
+          </label>
+          <label>Existing monthly loan repayments (KSh)
+            <input name="existing_repayments" type="number" min="0" value="0">
+          </label>
+          <label>GORA savings balance (KSh)
+            <input name="savings" type="number" min="0" value="0">
+          </label>
+          <label>Proposed instalment (KSh)
+            <input name="installment" type="number" min="0" required>
+          </label>
+          <label>Repayment capacity
+            <select name="capacity">
+              <option value="pending">Pending assessment</option>
+              <option value="adequate">Adequate</option>
+              <option value="inadequate">Inadequate</option>
+              <option value="needs_review">Needs further review</option>
+            </select>
+          </label>
+          <label>Officer assessment notes
+            <textarea name="assessment_notes" rows="3"></textarea>
+          </label>
+        </div>
+
+        <div class="panel">
+          <h3>5. Applicant documents</h3>
+          <label>Applicant photo
+            <input type="file" name="applicant_photo" accept="image/*" required>
+          </label>
+          <label>National ID - front
+            <input type="file" name="applicant_id_front" accept="image/*,.pdf" required>
+          </label>
+          <label>National ID - back
+            <input type="file" name="applicant_id_back" accept="image/*,.pdf" required>
+          </label>
+          <label>Business / income evidence (optional)
+            <input type="file" name="income_evidence" accept="image/*,.pdf">
+          </label>
+        </div>
+
+        <div class="panel">
+          <h3>6. Guarantors</h3>
+          <div class="notice">
+            Both GORA members and outsiders are accepted.
+            Every guarantor must be at least 18 years old and must personally consent and sign.
+            Identity and phone verification must be completed before signing links are issued.
+          </div>
+          <div id="goraGuarantorRows"></div>
+          <button type="button" class="secondary" id="addGoraGuarantor">＋ Add another guarantor</button>
+        </div>
+
+        <div class="panel">
+          <h3>7. Optional collateral</h3>
+          <label>Collateral type
+            <select name="collateral_type">
+              <option value="">No collateral</option>
+              <option value="household_item">Household item</option>
+              <option value="motor_vehicle">Motor vehicle</option>
+              <option value="land">Land</option>
+              <option value="business_asset">Business asset</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>Description
+            <textarea name="collateral_description" rows="2"></textarea>
+          </label>
+          <label>Estimated value (KSh)
+            <input name="collateral_value" type="number" min="0">
+          </label>
+          <label>Collateral owner
+            <input name="collateral_owner">
+          </label>
+          <label>Ownership document notes
+            <textarea name="ownership_notes" rows="2"></textarea>
+          </label>
+        </div>
+
+        <div class="panel">
+          <label>
+            <input type="checkbox" name="declaration" required>
+            I confirm that the information has been provided by the applicant and
+            that the applicant has agreed to this application.
+          </label>
+          <button class="primary" type="submit">Save loan application</button>
+          <p id="goraApplicationMessage" class="hint"></p>
+        </div>
+      </form>
+    `;
+
+    c.querySelector('#openSigningManager').onclick = () =>
+      goraSigningManagerPage(c);
+
+    const form = c.querySelector('#goraNewApplication');
+    const rows = c.querySelector('#goraGuarantorRows');
+
+    
+function addGuarantor() {
+  const n = rows.children.length;
+  const div = document.createElement('div');
+  div.className = 'panel goraGuarantor';
+
+  div.innerHTML = `
+    <h4>Guarantor ${n + 1}</h4>
+
+    <label>Guarantor type
+      <select name="gtype">
+        <option value="member">GORA member</option>
+        <option value="outsider">Outsider</option>
+      </select>
+    </label>
+
+    <div class="memberPicker">
+      <label>Select registered GORA member
+        <select name="gmember">
+          <option value="">Choose member</option>
+          ${ms.filter(m => m.status === 'active').map(m => `
+            <option value="${m.id}"
+              data-name="${esc(m.full_name)}"
+              data-phone="${esc(m.phone)}"
+              data-id="${esc(m.national_id || '')}">
+              ${esc(m.member_number)} - ${esc(m.full_name)}
+            </option>
+          `).join('')}
+        </select>
+      </label>
+    </div>
+
+    <label>Full name
+      <input name="gname" required>
+    </label>
+
+    <label>Phone number
+      <input name="gphone" required>
+    </label>
+
+    <label>National ID number
+      <input name="gid" required>
+    </label>
+
+    <label>Date of birth
+      <input name="gdob" type="date" required>
+    </label>
+
+    <label>Location
+      <input name="glocation">
+    </label>
+
+    <label>Relationship to borrower
+      <input name="relationship">
+    </label>
+
+    <label>Guarantee amount (KSh)
+      <input name="gamount" type="number" min="1" required>
+    </label>
+
+    <label>Guarantor photo
+      <input name="gphoto" type="file" accept="image/*" required>
+    </label>
+
+    <label>National ID front
+      <input name="gidfront" type="file" accept="image/*,.pdf" required>
+    </label>
+
+    <label>National ID back
+      <input name="gidback" type="file" accept="image/*,.pdf" required>
+    </label>
+
+    <button type="button" class="secondary removeGuarantor">
+      Remove guarantor
+    </button>
+  `;
+
+  const type = div.querySelector('[name="gtype"]');
+  const picker = div.querySelector('.memberPicker');
+  const memberSelect = div.querySelector('[name="gmember"]');
+  const name = div.querySelector('[name="gname"]');
+  const phone = div.querySelector('[name="gphone"]');
+  const nationalId = div.querySelector('[name="gid"]');
+
+  function updateType() {
+    const isMember = type.value === 'member';
+    picker.style.display = isMember ? 'block' : 'none';
+    memberSelect.required = isMember;
+
+    name.readOnly = isMember;
+    phone.readOnly = isMember;
+    nationalId.readOnly = isMember;
+
+    if (!isMember) {
+      memberSelect.value = '';
+      name.value = '';
+      phone.value = '';
+      nationalId.value = '';
+    }
+  }
+
+  memberSelect.onchange = () => {
+    const option = memberSelect.selectedOptions[0];
+    name.value = option.dataset.name || '';
+    phone.value = option.dataset.phone || '';
+    nationalId.value = option.dataset.id || '';
+  };
+
+  type.onchange = updateType;
+
+  div.querySelector('.removeGuarantor').onclick = () => div.remove();
+
+  rows.appendChild(div);
+  updateType();
+}
+
+
+    addGuarantor();
+    c.querySelector('#addGoraGuarantor').onclick = addGuarantor;
+
+c.querySelector('#addAllChamaMembers').onclick = async () => {
+  const btn = c.querySelector('#addAllChamaMembers');
+  const chamaId = form.elements.chama_id.value;
+  const borrowerId = form.elements.member_id.value;
+
+  if (!chamaId) {
+    alert('Please select a chama first.');
+    return;
+  }
+
+  btn.disabled = true;
+
+  try {
+    const { data, error } = await db
+      .from('chama_members')
+      .select('member_id')
+      .eq('chama_id', chamaId)
+      .eq('status', 'active');
+
+    if (error) throw error;
+
+    const eligible = (data || []).filter(
+      item => item.member_id !== borrowerId
+    );
+
+    if (!eligible.length) {
+      alert('No other active chama members were found.');
+      return;
+    }
+
+    const existing = new Set(
+      [...rows.querySelectorAll('.goraGuarantor')]
+        .map(div => div.querySelector('[name="gmember"]').value)
+        .filter(Boolean)
+    );
+
+    let added = 0;
+
+    for (const item of eligible) {
+      if (existing.has(item.member_id)) continue;
+
+      const member = ms.find(m => m.id === item.member_id);
+      if (!member || member.status !== 'active') continue;
+
+      addGuarantor();
+
+      const div = rows.lastElementChild;
+      const type = div.querySelector('[name="gtype"]');
+      const select = div.querySelector('[name="gmember"]');
+
+      type.value = 'member';
+      type.dispatchEvent(new Event('change'));
+
+      select.value = member.id;
+      select.dispatchEvent(new Event('change'));
+
+      existing.add(member.id);
+      added++;
+    }
+
+    alert(added + ' chama members added as proposed guarantors.');
+  } catch (err) {
+    alert('Could not load chama members: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+    c.querySelector('#goraProduct').onchange = e => {
+      const o = e.target.selectedOptions[0];
+      if (!o.value) return;
+      form.elements.rate.value = o.dataset.rate || 0;
+      form.elements.duration.value = o.dataset.days || 28;
+      const amount = Number(form.elements.amount.value || o.dataset.min);
+      form.elements.fee.value =
+        (amount * Number(o.dataset.fee || 0)) / 100;
+    };
+
+    form.elements.amount.oninput = () => {
+      const o = c.querySelector('#goraProduct').selectedOptions[0];
+      if (o && o.value) {
+        form.elements.fee.value =
+          (Number(form.elements.amount.value || 0) *
+          Number(o.dataset.fee || 0)) / 100;
+      }
+    };
+
+    form.onsubmit = async e => {
+      e.preventDefault();
+      const msg = c.querySelector('#goraApplicationMessage');
+      const btn = form.querySelector('[type="submit"]');
+      btn.disabled = true;
+      msg.textContent = 'Saving application. Please wait...';
+
+      let applicationId = null;
+      const uploaded = [];
+
+      try {
+        const fd = new FormData(form);
+        const memberId = fd.get('member_id');
+        const productId = fd.get('product_id');
+        const amount = Number(fd.get('amount'));
+        const product = ps.find(p => p.id === productId);
+
+        if (!memberId || !product) throw new Error('Select a borrower and loan product.');
+        if (amount < Number(product.minimum_amount) ||
+            amount > Number(product.maximum_amount)) {
+          throw new Error('Requested amount is outside this product limit.');
+        }
+
+        const guarantorRows = [...rows.querySelectorAll('.goraGuarantor')];
+        if (!guarantorRows.length) throw new Error('Add at least one guarantor.');
+
+        const guarantors = guarantorRows.map(div => {
+          const g = Object.fromEntries(
+            [...div.querySelectorAll('[name]')].map(el => [el.name, el])
+          );
+          const dob = new Date(g.gdob.value + 'T00:00:00');
+          let age = new Date().getFullYear() - dob.getFullYear();
+          const md = new Date().getMonth() - dob.getMonth();
+          if (md < 0 || (md === 0 && new Date().getDate() < dob.getDate())) age--;
+         if (g.gtype.value === 'member' && !g.gmember.value) {
+  throw new Error('Please select the registered GORA guarantor.');
+}
+          if (!g.gname.value.trim() || !g.gphone.value.trim() ||
+              !g.gid.value.trim() || !g.gdob.value || age < 18) {
+            throw new Error('Each guarantor must have complete details and be at least 18.');
+          }
+          if (!g.gphoto.files[0] || !g.gidfront.files[0] || !g.gidback.files[0]) {
+            throw new Error('Upload each guarantor photo and both sides of their ID.');
+          }
+          return { div, g };
+        });
+
+        const guaranteeTotal = guarantors.reduce(
+          (sum, x) => sum + Number(x.g.gamount.value || 0), 0
+        );
+        if (guaranteeTotal < amount) {
+          throw new Error('Total guarantor amounts must cover the requested loan.');
+        }
+
+        const { data: userData } = await db.auth.getUser();
+        if (!userData.user) throw new Error('Please sign in again.');
+
+        const appPayload = {
+          member_id: memberId,
+          product_id: productId,
+          requested_amount: amount,
+          proposed_interest_rate: Number(fd.get('rate')),
+          proposed_duration_days: Number(fd.get('duration')),
+          purpose: fd.get('purpose'),
+          status: 'pending',
+          application_source: 'manual',
+          repayment_frequency: fd.get('frequency'),
+          application_fee_amount: Number(fd.get('fee') || 0),
+          application_fee_status: 'not_paid',
+          guarantor_required: true,
+          chama_id: fd.get('chama_id') || null,
+          preferred_disbursement_method: fd.get('disbursement'),
+          borrower_declaration_at: new Date().toISOString(),
+          documents_review_status: 'pending'
+        };
+
+        const { data: app, error: appError } = await db
+          .from('loan_applications').insert(appPayload).select('id').single();
+        if (appError) throw appError;
+        applicationId = app.id;
+
+        const business = await db.from('loan_application_business_details').insert({
+          application_id: applicationId,
+          employment_status: fd.get('employment'),
+          occupation: fd.get('occupation'),
+          employer_name: fd.get('employer'),
+          business_name: fd.get('business_name'),
+          business_type: fd.get('business_type'),
+          business_location: fd.get('business_location'),
+          business_age_months: Number(fd.get('business_age') || 0) || null,
+          monthly_business_income: Number(fd.get('business_income') || 0),
+          monthly_salary_income: Number(fd.get('salary') || 0),
+          other_income_description: fd.get('other_income_description'),
+          other_income_amount: Number(fd.get('other_income') || 0)
+        });
+        if (business.error) throw business.error;
+
+        const monthlyIncome = Number(fd.get('monthly_income'));
+        const expenses = Number(fd.get('expenses'));
+        const assessment = await db.from('loan_application_assessments').insert({
+          application_id: applicationId,
+          monthly_income: monthlyIncome,
+          other_monthly_income: Number(fd.get('other_income') || 0),
+          monthly_expenses: expenses,
+          existing_loan_balance: Number(fd.get('existing_balance') || 0),
+          existing_monthly_repayments: Number(fd.get('existing_repayments') || 0),
+          savings_balance: Number(fd.get('savings') || 0),
+          disposable_income: monthlyIncome - expenses -
+            Number(fd.get('existing_repayments') || 0),
+          proposed_installment: Number(fd.get('installment')),
+          repayment_capacity: fd.get('capacity'),
+          officer_assessment: fd.get('assessment_notes'),
+          assessed_by: userData.user.id,
+          assessed_at: new Date().toISOString()
+        });
+        if (assessment.error) throw assessment.error;
+
+        for (const item of guarantors) {
+          const g = item.g;
+          const { data: guarantor, error: gError } = await db
+            .from('loan_guarantors').insert({
+              application_id: applicationId,
+              guarantor_member_id: g.gtype.value === 'member' ? g.gmember.value : null,
+              guarantor_type: g.gtype.value,
+              full_name: g.gname.value.trim(),
+              phone: g.gphone.value.trim(),
+              national_id: g.gid.value.trim(),
+              date_of_birth: g.gdob.value,
+              location: g.glocation.value,
+              relationship: g.relationship.value,
+              guarantee_amount: Number(g.gamount.value),
+              consent_status: 'pending',
+              identity_verification_status: 'pending',
+              phone_verification_status: 'pending',
+              recorded_by: userData.user.id
+            }).select('id').single();
+          if (gError) throw gError;
+
+          for (const [type, file] of [
+            ['photo', g.gphoto.files[0]],
+            ['id_front', g.gidfront.files[0]],
+            ['id_back', g.gidback.files[0]]
+          ]) {
+            const path = `applications/${applicationId}/guarantors/${guarantor.id}/${type}_${Date.now()}`;
+            const up = await db.storage.from('member-documents').upload(path, file);
+            if (up.error) throw up.error;
+            uploaded.push(path);
+            const meta = await db.from('loan_guarantor_documents').insert({
+              guarantor_id: guarantor.id,
+              document_type: type,
+              storage_bucket: 'member-documents',
+              storage_path: path,
+              uploaded_by: userData.user.id
+            });
+            if (meta.error) throw meta.error;
+          }
+        }
+
+        const applicantFiles = [
+          ['applicant_photo', fd.get('applicant_photo')],
+          ['applicant_id_front', fd.get('applicant_id_front')],
+          ['applicant_id_back', fd.get('applicant_id_back')],
+          ['income_evidence', fd.get('income_evidence')]
+        ].filter(x => x[1] instanceof File && x[1].size > 0);
+
+        for (const [type, file] of applicantFiles) {
+          const path = `applications/${applicationId}/applicant/${type}_${Date.now()}`;
+          const up = await db.storage.from('member-documents').upload(path, file);
+          if (up.error) throw up.error;
+          uploaded.push(path);
+          const meta = await db.from('loan_application_documents').insert({
+            application_id: applicationId,
+            document_type: type,
+            storage_path: path,
+            uploaded_by: userData.user.id
+          });
+          if (meta.error) throw meta.error;
+        }
+
+        if (fd.get('collateral_type')) {
+          const col = await db.from('loan_application_collateral').insert({
+            application_id: applicationId,
+            collateral_type: fd.get('collateral_type'),
+            description: fd.get('collateral_description'),
+            estimated_value: Number(fd.get('collateral_value') || 0),
+            owner_full_name: fd.get('collateral_owner'),
+            ownership_document_notes: fd.get('ownership_notes'),
+            verification_status: 'pending'
+          });
+          if (col.error) throw col.error;
+        }
+
+        msg.textContent =
+          'Application saved successfully. Reference: ' + applicationId +
+          '. Documents and guarantor verification are pending review.';
+        alert('GORA application saved. Reference: ' + applicationId);
+        form.reset();
+        rows.innerHTML = '';
+        addGuarantor();
+
+      } catch (err) {
+        msg.textContent = applicationId
+          ? 'Application ' + applicationId +
+            ' was created but a later step failed. Do not submit another application. Contact the administrator to complete this record. Error: ' + err.message
+          : 'Could not save application: ' + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+  } catch (err) {
+    c.innerHTML = `<div class="panel"><h3>Application screen error</h3><p>${esc(err.message)}</p></div>`;
   }
 }
 
