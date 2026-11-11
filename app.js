@@ -1182,29 +1182,157 @@ async function goraSigningManagerPage(c) {
             .update({chama_id: chamaId})
             .eq('id', id));
 
+          
           const result = await safe(db.from('loan_guarantors')
-            .select('full_name,phone,guarantee_amount,consent_status')
+            .select('*')
             .eq('application_id', id));
 
-                    const review = document.getElementById(
+          const guarantorIds = result.data.map(g => g.id);
+
+          const docsResult = guarantorIds.length
+            ? await safe(db.from('loan_guarantor_documents')
+                .select('*')
+                .in('guarantor_id', guarantorIds))
+            : {data: []};
+
+          const review = document.getElementById(
             'signReview-' + id
           );
+
+          const docs = docsResult.data || [];
 
           const totalGuaranteed = result.data.reduce(
             (sum, g) => sum + Number(g.guarantee_amount || 0), 0
           );
 
           review.innerHTML = `
-            <h3>Review individual guarantees</h3>
+            <h3>Guarantor review and verification</h3>
             <p>Number of guarantors: ${result.data.length}</p>
-            <p>Total guaranteed: ${cash(totalGuaranteed)}</p>
-            ${result.data.map(g => `
-              <div class="metric-line">
-                <span>${esc(g.full_name)} · ${esc(g.phone)}</span>
-                <b>${cash(g.guarantee_amount || 0)}</b>
-              </div>
-            `).join('')}
+            <p>Total guaranteed: <b>${cash(totalGuaranteed)}</b></p>
+
+            ${result.data.map(g => {
+              const gd = docs.filter(d => d.guarantor_id === g.id);
+
+              return `
+                <div class="panel" style="margin:10px 0">
+                  <h4>${esc(g.full_name)}</h4>
+                  <p>Phone: ${esc(g.phone || 'Missing')}</p>
+                  <p>National ID: ${esc(g.national_id || 'Missing')}</p>
+
+                  <label>Guarantee amount (KSh)
+                    <input type="number" min="0" step="1"
+                      class="gAmount"
+                      data-id="${g.id}"
+                      value="${Number(g.guarantee_amount || 0)}">
+                  </label>
+
+                  <button class="secondary saveGAmount"
+                    data-id="${g.id}">
+                    Save guarantee amount
+                  </button>
+
+                  <p>Identity: ${esc(g.identity_verification_status || 'pending')}</p>
+                  <button class="secondary verifyGIdentity"
+                    data-id="${g.id}">Verify identity</button>
+
+                  <p>Phone: ${esc(g.phone_verification_status || 'pending')}</p>
+                  <button class="secondary verifyGPhone"
+                    data-id="${g.id}">Verify phone</button>
+
+                  <h4>Uploaded documents</h4>
+                  ${['photo','national_id_front','national_id_back'].map(type => {
+                    const d = gd.find(x => x.document_type === type);
+                    return `
+                      <div class="metric-line">
+                        <span>${type}: ${d ? esc(d.verification_status) : 'Missing'}</span>
+                        ${d ? `
+                          <button class="secondary viewGDoc"
+                            data-bucket="${esc(d.storage_bucket)}"
+                            data-path="${esc(d.storage_path)}">View</button>
+                          <button class="secondary verifyGDoc"
+                            data-id="${d.id}">Verify document</button>
+                        ` : ''}
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `;
+            }).join('')}
           `;
+
+          review.querySelectorAll('.saveGAmount').forEach(button => {
+            button.onclick = async () => {
+              try {
+                const field = review.querySelector(
+                  '.gAmount[data-id="' + button.dataset.id + '"]'
+                );
+                const amount = Number(field.value);
+
+                if (!Number.isFinite(amount) || amount < 0) {
+                  throw new Error('Enter a valid amount.');
+                }
+
+                const {error} = await db.from('loan_guarantors')
+                  .update({guarantee_amount:amount})
+                  .eq('id',button.dataset.id);
+
+                if (error) throw error;
+                alert('Guarantee amount saved. Reload the chama members to refresh totals.');
+              } catch (err) {
+                alert(err.message);
+              }
+            };
+          });
+
+          review.querySelectorAll('.verifyGIdentity, .verifyGPhone, .verifyGDoc').forEach(button => {
+            button.onclick = async () => {
+              if (!confirm('Have you personally checked this information or document?')) return;
+
+              try {
+                const {data:{user}} = await db.auth.getUser();
+                if (!user) throw new Error('Please sign in again.');
+
+                let table = 'loan_guarantors';
+                let patch = {
+                  verified_by:user.id,
+                  verified_at:new Date().toISOString()
+                };
+
+                if (button.classList.contains('verifyGIdentity')) {
+                  patch.identity_verification_status = 'verified';
+                } else if (button.classList.contains('verifyGPhone')) {
+                  patch.phone_verification_status = 'verified';
+                } else {
+                  table = 'loan_guarantor_documents';
+                  patch.verification_status = 'verified';
+                }
+
+                const {error} = await db.from(table)
+                  .update(patch)
+                  .eq('id',button.dataset.id);
+
+                if (error) throw error;
+                alert('Verification saved.');
+              } catch (err) {
+                alert('Verification failed: ' + err.message);
+              }
+            };
+          });
+
+          review.querySelectorAll('.viewGDoc').forEach(button => {
+            button.onclick = async () => {
+              try {
+                const {data,error} = await db.storage
+                  .from(button.dataset.bucket)
+                  .createSignedUrl(button.dataset.path,300);
+
+                if (error) throw error;
+                window.open(data.signedUrl,'_blank','noopener');
+              } catch (err) {
+                alert('Could not open document: ' + err.message);
+              }
+            };
+          });
 
           const loanAmount = Number(
             app.approved_amount || app.requested_amount
@@ -1214,7 +1342,27 @@ async function goraSigningManagerPage(c) {
             '.issueSignLinks[data-id="' + id + '"]'
           );
 
-          issueButton.disabled = totalGuaranteed < loanAmount;
+          
+          const allVerified = result.data.length > 0 &&
+            result.data.every(g => {
+              const gd = docs.filter(d => d.guarantor_id === g.id);
+              const required = ['photo', 'national_id_front', 'national_id_back'];
+
+              return Number(g.guarantee_amount) > 0 &&
+                Boolean(g.phone) &&
+                Boolean(g.national_id) &&
+                Boolean(g.date_of_birth) &&
+                g.identity_verification_status === 'verified' &&
+                g.phone_verification_status === 'verified' &&
+                required.every(type =>
+                  gd.some(d => d.document_type === type &&
+                    d.verification_status === 'verified')
+                );
+            });
+
+          issueButton.disabled =
+            totalGuaranteed < loanAmount || !allVerified;
+
         } catch (err) {
           alert('Could not load guarantors: ' + err.message);
         } finally {
