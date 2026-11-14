@@ -337,7 +337,7 @@ async function chamaPage(c){
     ${table('Loans linked to group members',['member_id','principal','total_payable','status'],
      groupLoans.map(x=>({...x,principal:cash(x.principal),total_payable:cash(x.total_payable)}))
     )}
-   `;${table('Individual member financial ledger',[
+   ${table('Individual member financial ledger',[
  'member_number',
  'full_name',
  'savings_start_date',
@@ -382,7 +382,7 @@ async function chamaPage(c){
   arrears:cash(arrears)
  };
 }))}
-
+`;
    $('backChamas').onclick=()=>chamaPage(c);
   };
  });
