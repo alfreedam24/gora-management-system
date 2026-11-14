@@ -89,9 +89,9 @@ const pages={
 async function chamaPage(c){
  const [groups,links,savings,loans]=await Promise.all([
   safe(db.from('chamas').select('id,name,location,meeting_day,meeting_frequency,weekly_savings_target,status,created_at').order('created_at',{ascending:false})),
-  safe(db.from('chama_members').select('chama_id,member_id,status')),
-  safe(db.from('savings_transactions').select('chama_id,transaction_type,amount,transaction_date')),
-  safe(db.from('loans').select('id,member_id,principal,total_payable,status,disbursement_date'))
+  safe(db.from('chama_members').select('chama_id,member_id,status,date_joined')),
+  safe(db.from('savings_transactions').select('id,chama_id,member_id,transaction_type,amount,transaction_date,reference,payment_method,receipt_number,notes').order('transaction_date',{ascending:false})),
+  safe(db.from('loans').select('id,member_id,principal,total_payable,status,disbursement_date,first_due_date,repayment_frequency'))
  ]);
 
  const gs=groups.data||[];
@@ -101,16 +101,19 @@ async function chamaPage(c){
 
  const activeLinks=ls.filter(x=>x.status==='active');
  const totalMembers=new Set(activeLinks.map(x=>x.member_id)).size;
- const totalSavings=sv.reduce((sum,x)=>{
+
+ const savingsTotal=(rows)=>rows.reduce((sum,x)=>{
   const type=String(x.transaction_type||'').toLowerCase();
   const amount=Number(x.amount||0);
-  return sum+(type.includes('withdraw')?-amount:amount);
+  if(type.includes('withdraw')) return sum-amount;
+  if(type.includes('deposit')||type.includes('saving')) return sum+amount;
+  return sum;
  },0);
 
+ const totalSavings=savingsTotal(sv);
  const activeLoans=ln.filter(x=>x.disbursement_date&&
   !['completed','closed','defaulted','written_off'].includes(String(x.status||'').toLowerCase())
  );
-
  c.innerHTML=`
  <div class="page-heading">
   <div>
@@ -273,14 +276,36 @@ async function chamaPage(c){
    const group=gs.find(g=>g.id===id);
    const memberIds=activeLinks.filter(x=>x.chama_id===id).map(x=>x.member_id);
 
-   const [memberData,savingData]=await Promise.all([
-    memberIds.length?
-     safe(db.from('members').select('id,member_number,full_name,phone,status').in('id',memberIds)):
-     Promise.resolve({data:[]}),
-    safe(db.from('savings_transactions').select('transaction_type,amount,transaction_date,reference').eq('chama_id',id).order('transaction_date',{ascending:false}))
+      const groupLoans=ln.filter(x=>
+    memberIds.includes(x.member_id)&&x.disbursement_date
+   );
+
+   const loanIds=groupLoans.map(x=>x.id);
+
+   const [memberData,savingData,installmentData,repaymentData]=await Promise.all([
+    memberIds.length
+     ?safe(db.from('members')
+       .select('id,member_number,full_name,phone,status')
+       .in('id',memberIds))
+     :Promise.resolve({data:[]}),
+    safe(db.from('savings_transactions')
+     .select('id,member_id,transaction_type,amount,transaction_date,reference')
+     .eq('chama_id',id)
+     .order('transaction_date',{ascending:false})),
+    loanIds.length
+     ?safe(db.from('installment_balances')
+       .select('installment_id,loan_id,installment_number,due_date,amount_due,amount_paid,balance,payment_status')
+       .in('loan_id',loanIds))
+     :Promise.resolve({data:[]}),
+    loanIds.length
+     ?safe(db.from('repayments')
+       .select('id,loan_id,installment_id,amount,payment_date,payment_method,receipt_number')
+       .in('loan_id',loanIds)
+       .order('payment_date',{ascending:false}))
+     :Promise.resolve({data:[]})
    ]);
 
-   const groupLoans=ln.filter(x=>memberIds.includes(x.member_id)&&x.disbursement_date);
+   
 
    c.innerHTML=`
     <div class="page-heading">
@@ -312,7 +337,51 @@ async function chamaPage(c){
     ${table('Loans linked to group members',['member_id','principal','total_payable','status'],
      groupLoans.map(x=>({...x,principal:cash(x.principal),total_payable:cash(x.total_payable)}))
     )}
-   `;
+   `;${table('Individual member financial ledger',[
+ 'member_number',
+ 'full_name',
+ 'savings_start_date',
+ 'savings_balance',
+ 'loans_disbursed',
+ 'loan_repayments',
+ 'loan_balance',
+ 'installments_remaining',
+ 'overdue_installments',
+ 'arrears'
+],(memberData.data||[]).map(m=>{
+ const memberSavings=(savingData.data||[]).filter(x=>x.member_id===m.id);
+ const savingsBalance=memberSavings.reduce((sum,x)=>{
+  const type=String(x.transaction_type||'').toLowerCase();
+  const amount=Number(x.amount||0);
+  if(type.includes('withdraw')) return sum-amount;
+  if(type.includes('deposit')||type.includes('saving')) return sum+amount;
+  return sum;
+ },0);
+ const memberLoans=groupLoans.filter(x=>x.member_id===m.id);
+ const ids=memberLoans.map(x=>x.id);
+ const schedules=(installmentData.data||[]).filter(x=>ids.includes(x.loan_id));
+ const payments=(repaymentData.data||[]).filter(x=>ids.includes(x.loan_id));
+ const outstanding=schedules.reduce((s,x)=>s+Number(x.balance||0),0);
+ const repaid=payments.reduce((s,x)=>s+Number(x.amount||0),0);
+ const today=new Date().toISOString().slice(0,10);
+ const overdue=schedules.filter(x=>
+  x.due_date<today&&Number(x.balance||0)>0
+ );
+ const arrears=overdue.reduce((s,x)=>s+Number(x.balance||0),0);
+ const dates=memberSavings.map(x=>x.transaction_date).filter(Boolean).sort();
+ return {
+  member_number:m.member_number||'—',
+  full_name:m.full_name,
+  savings_start_date:dates[0]||'—',
+  savings_balance:cash(savingsBalance),
+  loans_disbursed:cash(memberLoans.reduce((s,x)=>s+Number(x.principal||0),0)),
+  loan_repayments:cash(repaid),
+  loan_balance:cash(outstanding),
+  installments_remaining:schedules.filter(x=>Number(x.balance||0)>0).length,
+  overdue_installments:overdue.length,
+  arrears:cash(arrears)
+ };
+}))}
 
    $('backChamas').onclick=()=>chamaPage(c);
   };
