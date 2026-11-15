@@ -187,3 +187,4 @@ const [tbl,cols]=pages[page]||['audit_logs',['action','table_name','record_id','
 catch(e){c.innerHTML=`<div class="panel"><h3>Could not load ${page}</h3><p>${String(e.message||e)}</p><p>Database access policies or the required view may not yet be configured. No data has been changed.</p></div>`}}
 (function(){const u=localStorage.getItem('gora_url')||'',k=localStorage.getItem('gora_key')||'';$('url').value=u;$('key').value=k;connect();})();
 document.addEventListener('click',e=>{const b=e.target.closest('[data-page="Savings"]');if(b){e.preventDefault();e.stopImmediatePropagation();location.href='savings-management-v2.html'}},true);
+document.addEventListener('click',e=>{const b=e.target.closest('[data-page="Savings"]');if(b){e.preventDefault();e.stopImmediatePropagation();location.href='savings-management-v2.html'}},true);
