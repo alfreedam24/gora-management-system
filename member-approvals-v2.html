@@ -1,0 +1,389 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GORA | Member Approvals</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--navy:#102b46;--teal:#078b83;--bg:#f3f6fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:#243447}
+header{background:var(--navy);color:white;padding:22px}
+header h1{margin:0;font-size:22px}
+header p{margin:6px 0 0;color:#c9d9e8;font-size:13px}
+main{max-width:850px;margin:24px auto;padding:0 14px}
+.card{background:white;padding:20px;border-radius:13px;margin-bottom:16px;box-shadow:0 3px 14px #102b4610}
+h2{font-size:19px;color:var(--navy);margin:0 0 14px}
+label{display:block;font-size:13px;font-weight:bold;margin:12px 0 6px}
+input,select{width:100%;padding:12px;border:1px solid #d5dde6;border-radius:8px;background:white;font-size:15px}
+button{border:0;border-radius:8px;padding:11px 14px;color:white;font-weight:bold;font-size:14px;cursor:pointer}
+.primary{background:var(--teal)}
+.secondary{background:var(--navy)}
+.danger{background:#b83b3b}
+button:disabled{opacity:.5}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.top button{white-space:nowrap}
+.muted{color:#6c7b8c;font-size:13px;line-height:1.5}
+.status{display:none;padding:12px;border-radius:8px;margin:12px 0;font-size:14px;line-height:1.5}
+.error{display:block;background:#fff0ef;color:#9a2823}
+.success{display:block;background:#e6f6ef;color:#12633e}
+.pending{border:1px solid #e0e7ed;border-radius:10px;padding:16px;margin:14px 0}
+.pending h3{margin:0 0 9px;color:var(--navy);font-size:17px}
+.details{font-size:14px;line-height:1.8;color:#526274}
+.actions{display:flex;gap:9px;margin-top:14px}
+.actions button{flex:1}
+.hidden{display:none}
+.empty{text-align:center;padding:30px 10px;color:#6c7b8c}
+footer{text-align:center;padding:20px;color:#8491a0;font-size:12px}
+@media(max-width:430px){.top{align-items:flex-start}.actions{flex-direction:column}}
+</style>
+</head>
+<body>
+<header>
+<h1>GORA Savings & Credit Group</h1>
+<p>Member approval centre</p>
+</header>
+
+<main>
+<section class="card" id="loginCard">
+<h2>Staff sign in</h2>
+<p class="muted">Sign in with your GORA staff account.</p>
+<form id="loginForm">
+<label>Email address</label>
+<input id="email" type="email" required autocomplete="username">
+<label>Password</label>
+<input id="password" type="password" required autocomplete="current-password">
+<button class="primary" id="loginBtn" type="submit" style="width:100%;margin-top:18px">Sign in</button>
+</form>
+<div id="loginMessage" class="status"></div>
+</section>
+
+<section id="appCard" class="hidden">
+<div class="card">
+<div class="top">
+<div>
+<h2>Pending member approvals</h2>
+<p class="muted" id="staffLabel"></p>
+</div>
+<button class="secondary" id="logoutBtn" type="button">Sign out</button>
+</div>
+
+<label>Organisation</label>
+<select id="organisation"></select>
+
+<button class="primary" id="refreshBtn" type="button" style="width:100%">Refresh pending registrations</button>
+<div id="pageMessage" class="status"></div>
+</div>
+
+<div class="card">
+<div class="top">
+<h2>Awaiting review</h2>
+<strong id="pendingCount">0</strong>
+</div>
+<div id="pendingList"><div class="empty">Loading registrations...</div></div>
+</div>
+</section>
+</main>
+<footer>GORA Savings & Credit Group · Member approval</footer>
+
+<script>
+const URL = localStorage.getItem("gora_url");
+const KEY = localStorage.getItem("gora_key");
+let db = null;
+let currentUser = null;
+let orgs = [];
+let authorisedOrgIds = [];
+
+const $ = id => document.getElementById(id);
+
+function message(id, text, type="error") {
+  const el = $(id);
+  el.textContent = text;
+  el.className = "status " + type;
+}
+
+function clearMessage(id) {
+  $(id).textContent = "";
+  $(id).className = "status";
+}
+
+function setBusy(button, busy, normalText) {
+  button.disabled = busy;
+  button.textContent = busy ? "Please wait..." : normalText;
+}
+
+async function getStaffOrganisations() {
+  const { data, error } = await db
+    .from("user_roles")
+    .select("organization_id, role:roles(role_code)")
+    .eq("user_id", currentUser.id)
+    .eq("is_active", true);
+
+  if (error) throw error;
+
+  const allowed = new Set(["SUPER_ADMIN", "MANAGER"]);
+  authorisedOrgIds = [...new Set(
+    (data || [])
+      .filter(item => {
+        const role = Array.isArray(item.role) ? item.role[0] : item.role;
+        return role && allowed.has(role.role_code);
+      })
+      .map(item => item.organization_id)
+  )];
+
+  if (!authorisedOrgIds.length) {
+    throw new Error("Access denied. Only a SUPER_ADMIN or MANAGER can approve members.");
+  }
+
+  const { data: organisations, error: orgError } = await db
+    .from("organizations")
+    .select("id,name")
+    .in("id", authorisedOrgIds);
+
+  if (orgError) throw orgError;
+
+  orgs = organisations || [];
+  $("organisation").innerHTML = "";
+
+  orgs.forEach(org => {
+    const option = document.createElement("option");
+    option.value = org.id;
+    option.textContent = org.name;
+    $("organisation").appendChild(option);
+  });
+
+  await loadPending();
+}
+
+function addDetail(container, label, value) {
+  const line = document.createElement("div");
+  line.className = "details";
+  const strong = document.createElement("strong");
+  strong.textContent = label + ": ";
+  line.append(strong, document.createTextNode(value || "Not provided"));
+  container.appendChild(line);
+}
+
+function createMemberCard(member) {
+  const card = document.createElement("article");
+  card.className = "pending";
+
+  const heading = document.createElement("h3");
+  heading.textContent = member.full_name || "Unnamed member";
+  card.appendChild(heading);
+
+  addDetail(card, "Phone", member.phone);
+  addDetail(card, "National ID", member.national_id);
+  addDetail(card, "Registration date", member.registration_date);
+  addDetail(card, "Branch", member.branch?.branch_name);
+  addDetail(card, "Chama group", member.group?.group_name);
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+
+  const approve = document.createElement("button");
+  approve.className = "primary";
+  approve.textContent = "Approve member";
+  approve.type = "button";
+  approve.addEventListener("click", () => approveMember(member, approve));
+
+  const reject = document.createElement("button");
+  reject.className = "danger";
+  reject.textContent = "Reject member";
+  reject.type = "button";
+  reject.addEventListener("click", () => rejectMember(member, reject));
+
+  actions.append(approve, reject);
+  card.appendChild(actions);
+  return card;
+}
+
+async function loadPending() {
+  clearMessage("pageMessage");
+  $("pendingList").replaceChildren();
+
+  const orgId = $("organisation").value;
+  if (!orgId || !authorisedOrgIds.includes(orgId)) {
+    throw new Error("Select an organisation you are authorised to manage.");
+  }
+
+  $("pendingList").textContent = "Loading registrations...";
+
+  const { data, error } = await db
+    .from("members")
+    .select(`
+      id, organization_id, full_name, phone, national_id,
+      registration_date, status, branch:branches(branch_name),
+      group:chama_groups(group_name)
+    `)
+    .eq("organization_id", orgId)
+    .eq("status", "PENDING")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  $("pendingList").replaceChildren();
+  $("pendingCount").textContent = String((data || []).length);
+
+  if (!data || !data.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "No pending registrations. All caught up!";
+    $("pendingList").appendChild(empty);
+    return;
+  }
+
+  data.forEach(member => {
+    $("pendingList").appendChild(createMemberCard(member));
+  });
+}
+
+async function approveMember(member, button) {
+  const confirmed = confirm(
+    "Approve " + member.full_name + "?\n\n" +
+    "GORA will generate a permanent member number. This action cannot be undone through this screen."
+  );
+
+  if (!confirmed) return;
+
+  setBusy(button, true, "Approve member");
+
+  try {
+    const { data, error } = await db.rpc("approve_member", {
+      _member_id: member.id
+    });
+
+    if (error) throw error;
+
+    message(
+      "pageMessage",
+      member.full_name + " approved successfully. Member number: " + data,
+      "success"
+    );
+
+    await loadPending();
+  } catch (error) {
+    message("pageMessage", "Approval failed: " + error.message);
+    button.disabled = false;
+    button.textContent = "Approve member";
+  }
+}
+
+async function rejectMember(member, button) {
+  const reason = prompt(
+    "Enter the reason for rejecting " + member.full_name + ":"
+  );
+
+  if (reason === null) return;
+
+  if (!reason.trim()) {
+    message("pageMessage", "A rejection reason is required.");
+    return;
+  }
+
+  if (!confirm("Confirm rejection of " + member.full_name + "?")) return;
+
+  setBusy(button, true, "Reject member");
+
+  try {
+    const { error } = await db.rpc("reject_member", {
+      _member_id: member.id,
+      _reason: reason.trim()
+    });
+
+    if (error) throw error;
+
+    message("pageMessage", member.full_name + " has been rejected.", "success");
+    await loadPending();
+  } catch (error) {
+    message("pageMessage", "Rejection failed: " + error.message);
+    button.disabled = false;
+    button.textContent = "Reject member";
+  }
+}
+
+async function openApp(user) {
+  currentUser = user;
+  $("loginCard").classList.add("hidden");
+  $("appCard").classList.remove("hidden");
+  $("staffLabel").textContent = "Signed in: " + (user.email || "GORA staff");
+
+  try {
+    await getStaffOrganisations();
+  } catch (error) {
+    message("pageMessage", error.message);
+    $("pendingList").textContent = "Pending registrations could not be loaded.";
+  }
+}
+
+async function startApp() {
+  if (!URL || !KEY) {
+    message("loginMessage", "GORA connection settings were not found. Open the existing GORA app and configure its Supabase URL and publishable key first.");
+    return;
+  }
+
+  db = window.supabase.createClient(URL, KEY);
+
+  const { data, error } = await db.auth.getSession();
+  if (error) {
+    message("loginMessage", error.message);
+    return;
+  }
+
+  if (data.session) await openApp(data.session.user);
+}
+
+$("loginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  clearMessage("loginMessage");
+  setBusy($("loginBtn"), true, "Sign in");
+
+  try {
+    if (!db) throw new Error("GORA connection is not configured.");
+
+    const { data, error } = await db.auth.signInWithPassword({
+      email: $("email").value.trim(),
+      password: $("password").value
+    });
+
+    if (error) throw error;
+    await openApp(data.user);
+  } catch (error) {
+    message("loginMessage", error.message);
+  } finally {
+    setBusy($("loginBtn"), false, "Sign in");
+  }
+});
+
+$("organisation").addEventListener("change", async () => {
+  try {
+    await loadPending();
+  } catch (error) {
+    message("pageMessage", error.message);
+  }
+});
+
+$("refreshBtn").addEventListener("click", async () => {
+  setBusy($("refreshBtn"), true, "Refresh pending registrations");
+  try {
+    await loadPending();
+  } catch (error) {
+    message("pageMessage", error.message);
+  } finally {
+    setBusy($("refreshBtn"), false, "Refresh pending registrations");
+  }
+});
+
+$("logoutBtn").addEventListener("click", async () => {
+  if (db) await db.auth.signOut();
+  currentUser = null;
+  $("appCard").classList.add("hidden");
+  $("loginCard").classList.remove("hidden");
+});
+
+startApp();
+</script>
+</body>
+</html>
