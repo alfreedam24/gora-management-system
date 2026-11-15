@@ -22,7 +22,6 @@ input,select,textarea{width:100%;padding:12px;border:1px solid #cbd5e0;border-ra
 button{border:0;border-radius:8px;padding:12px 16px;background:var(--teal);color:white;font-weight:700;cursor:pointer}
 button.secondary{background:#e5edf5;color:var(--navy)}
 button:disabled{opacity:.5}
-.actions{display:flex;gap:8px;flex-wrap:wrap}
 .stat{background:#f2f7fb;padding:14px;border-radius:10px}
 .stat strong{display:block;font-size:22px;color:var(--navy);margin-top:5px}
 .muted{color:var(--muted)}
@@ -34,12 +33,11 @@ button:disabled{opacity:.5}
 table{width:100%;border-collapse:collapse;min-width:650px}
 th,td{text-align:left;padding:11px;border-bottom:1px solid var(--line);font-size:13px}
 th{background:#f3f7fa;color:#536779}
-.hidden{display:none}
+.hidden{display:none!important}
 footer{text-align:center;color:#8999a8;padding:25px}
 </style>
 </head>
 <body>
-
 <header>
   <h2>GORA Savings Management</h2>
   <small>Member accounts • Deposits • Withdrawals • Approvals</small>
@@ -65,37 +63,32 @@ footer{text-align:center;color:#8999a8;padding:25px}
       <div class="stat">Active accounts<strong id="accountCount">0</strong></div>
       <div class="stat">Pending transactions<strong id="pendingCount">0</strong></div>
       <div class="stat">Posted deposits<strong id="depositTotal">KES 0</strong></div>
+      <div class="stat">Total savings liability<strong id="balanceTotal">KES 0</strong></div>
     </div>
     <p class="muted" id="staffInfo"></p>
   </div>
 
   <div class="notice">
-    Deposits and withdrawals are recorded as PENDING. A different authorised manager must approve them before they affect the posted savings balance.
+    Deposits and withdrawals remain PENDING until approved by a different authorised manager. Pending transactions do not change posted balances.
   </div>
 
   <div class="card" id="openCard">
     <h3>Open savings account</h3>
     <form id="openForm">
       <label>Approved member</label>
-      <select id="member" required>
-        <option value="">Loading members...</option>
-      </select>
+      <select id="member" required><option value="">Loading members...</option></select>
       <label>Branch</label>
-      <select id="branch">
-        <option value="">Head office / no branch selected</option>
-      </select>
+      <select id="branch"><option value="">Head office / no branch selected</option></select>
       <button id="openBtn">Open account</button>
     </form>
     <p class="muted">Only approved or active members can receive savings accounts.</p>
   </div>
 
-  <div class="card">
+  <div class="card" id="recordCard">
     <h3>Record deposit or withdrawal</h3>
     <form id="transactionForm">
       <label>Savings account</label>
-      <select id="account" required>
-        <option value="">Select account</option>
-      </select>
+      <select id="account" required><option value="">Select account</option></select>
       <div class="grid">
         <div>
           <label>Transaction type</label>
@@ -138,7 +131,7 @@ footer{text-align:center;color:#8999a8;padding:25px}
   </div>
 
   <div class="card">
-    <h3>Accounts</h3>
+    <h3>Savings accounts</h3>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Account number</th><th>Member</th><th>Status</th><th>Posted balance</th></tr></thead>
@@ -160,37 +153,35 @@ footer{text-align:center;color:#8999a8;padding:25px}
 
 <div id="message" class="message"></div>
 </main>
-
 <footer>GORA Savings & Credit Group • Internal management system</footer>
 
 <script>
-const URL = localStorage.getItem("gora_url");
-const KEY = localStorage.getItem("gora_key");
-const $ = id => document.getElementById(id);
-const money = n => new Intl.NumberFormat("en-KE",{style:"currency",currency:"KES"}).format(Number(n||0));
-let db, user, orgId, roles=[], accounts=[], members=[], transactions=[];
+const URL=localStorage.getItem("gora_url");
+const KEY=localStorage.getItem("gora_key");
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat("en-KE",{style:"currency",currency:"KES"}).format(Number(n||0));
+let db,user,orgId,roles=[],accounts=[],members=[],transactions=[],balances={};
 
 function say(message,kind="success"){
   $("message").textContent=message;
   $("message").className="message "+kind;
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function safe(value){
-  return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function safe(v){
+  return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 function has(...allowed){return roles.some(r=>allowed.includes(r));}
-
 async function check(result){
-  if(result.error) throw result.error;
+  if(result.error)throw result.error;
   return result.data;
 }
 
 async function start(){
-  if(!URL||!KEY) throw new Error("Connection settings missing. Open the main GORA app and save the Supabase URL and public key first.");
+  if(!URL||!KEY)throw new Error("Connection settings missing. Open the main GORA app and save the Supabase URL and public key first.");
   db=window.supabase.createClient(URL,KEY);
   const {data,error}=await db.auth.getSession();
-  if(error) throw error;
-  if(!data.session) return;
+  if(error)throw error;
+  if(!data.session)return;
   user=data.session.user;
   await loadWorkspace();
 }
@@ -202,7 +193,7 @@ async function loadWorkspace(){
 
   roles=roleRows.map(x=>x.roles?.role_code).filter(Boolean);
   const orgs=[...new Set(roleRows.map(x=>x.organization_id))];
-  if(orgs.length!==1) throw new Error("Your account must have exactly one active GORA organisation assignment.");
+  if(orgs.length!==1)throw new Error("Your account must have exactly one active GORA organisation assignment.");
   orgId=orgs[0];
 
   if(!has("SUPER_ADMIN","MANAGER","CASHIER","ACCOUNTANT","LOAN_OFFICER","AUDITOR"))
@@ -212,24 +203,39 @@ async function loadWorkspace(){
   $("workspace").classList.remove("hidden");
   $("staffInfo").textContent="Signed in: "+user.email+" • Role: "+roles.join(", ");
   $("openCard").classList.toggle("hidden",!has("SUPER_ADMIN","MANAGER","CASHIER"));
-  $("transactionForm").classList.toggle("hidden",!has("SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER"));
+  $("recordCard").classList.toggle("hidden",!has("SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER"));
   await loadData();
 }
 
 async function loadData(){
-  const [a,t,b]=await Promise.all([
-    db.from("savings_accounts").select("id,account_number,member_id,status,branch_id,opened_at").eq("organization_id",orgId).order("opened_at",{ascending:false}),
-    db.from("savings_transactions").select("id,savings_account_id,transaction_number,transaction_type,amount,payment_method,status,recorded_by,transaction_date").eq("organization_id",orgId).order("transaction_date",{ascending:false}).limit(150),
-    db.from("branches").select("id,branch_name").eq("organization_id",orgId).eq("status","ACTIVE").order("branch_name")
+  const [a,t,p,b,br]=await Promise.all([
+    db.from("savings_accounts")
+      .select("id,account_number,member_id,status,branch_id,opened_at")
+      .eq("organization_id",orgId).order("opened_at",{ascending:false}),
+    db.from("savings_transactions")
+      .select("id,savings_account_id,transaction_number,transaction_type,amount,payment_method,status,recorded_by,transaction_date")
+      .eq("organization_id",orgId).order("transaction_date",{ascending:false}).limit(60),
+    db.from("savings_transactions")
+      .select("id,savings_account_id,transaction_number,transaction_type,amount,recorded_by,transaction_date")
+      .eq("organization_id",orgId).eq("status","PENDING").order("transaction_date",{ascending:true}),
+    db.rpc("get_savings_account_balances",{_organization_id:orgId}),
+    db.from("branches").select("id,branch_name")
+      .eq("organization_id",orgId).eq("status","ACTIVE").order("branch_name")
   ]);
+
   accounts=await check(a)||[];
   transactions=await check(t)||[];
-  const branches=await check(b)||[];
+  const pending=await check(p)||[];
+  const balanceRows=await check(b)||[];
+  const branches=await check(br)||[];
+
+  balances={};
+  balanceRows.forEach(x=>{balances[x.savings_account_id]=Number(x.posted_balance||0);});
 
   $("branch").innerHTML='<option value="">Head office / no branch selected</option>'+
     branches.map(x=>`<option value="${safe(x.id)}">${safe(x.branch_name)}</option>`).join("");
 
-  if(has("SUPER_ADMIN","MANAGER","LOAN_OFFICER")){
+  if(has("SUPER_ADMIN","MANAGER","LOAN_OFFICER","CASHIER")){
     members=await check(await db.from("members")
       .select("id,member_number,full_name,status")
       .eq("organization_id",orgId)
@@ -237,44 +243,62 @@ async function loadData(){
       .order("full_name"))||[];
     $("member").innerHTML='<option value="">Select approved member</option>'+
       members.map(m=>`<option value="${safe(m.id)}">${safe(m.member_number||"Awaiting number")} — ${safe(m.full_name)}</option>`).join("");
-  }else{
-    $("member").innerHTML='<option value="">Member list access restricted to authorised registration staff</option>';
   }
 
-  const ids=accounts.map(a=>a.id);
-  const posted=transactions.filter(x=>x.status==="POSTED");
-  const balanceByAccount={};
-  posted.forEach(x=>{
-    balanceByAccount[x.savings_account_id]=(balanceByAccount[x.savings_account_id]||0)+
-      (x.transaction_type==="DEPOSIT"?Number(x.amount):-Number(x.amount));
-  });
+  $("accountCount").textContent=accounts.filter(x=>x.status==="ACTIVE").length;
+  $("pendingCount").textContent=pending.length;
 
-  $("accountCount").textContent=accounts.filter(a=>a.status==="ACTIVE").length;
-  $("pendingCount").textContent=transactions.filter(x=>x.status==="PENDING").length;
-  $("depositTotal").textContent=money(posted.filter(x=>x.transaction_type==="DEPOSIT").reduce((s,x)=>s+Number(x.amount),0));
+  const totalDeposits=balanceRows.reduce((s,x)=>s+Number(x.posted_deposits||0),0);
+  const totalBalance=balanceRows.reduce((s,x)=>s+Number(x.posted_balance||0),0);
+  $("depositTotal").textContent=money(totalDeposits);
+  $("balanceTotal").textContent=money(totalBalance);
 
   $("account").innerHTML='<option value="">Select account</option>'+
-    accounts.filter(a=>a.status==="ACTIVE").map(a=>`<option value="${safe(a.id)}">${safe(a.account_number)} — ${money(balanceByAccount[a.id]||0)}</option>`).join("");
+    accounts.filter(x=>x.status==="ACTIVE").map(x=>
+      `<option value="${safe(x.id)}">${safe(x.account_number)} — ${money(balances[x.id]||0)}</option>`
+    ).join("");
 
   const memberNames=Object.fromEntries(members.map(m=>[m.id,m.full_name]));
   $("accountRows").innerHTML=accounts.length?accounts.map(a=>`
-    <tr><td>${safe(a.account_number)}</td><td>${safe(memberNames[a.member_id]||"Member ID: "+a.member_id.slice(0,8))}</td><td>${safe(a.status)}</td><td>${money(balanceByAccount[a.id]||0)}</td></tr>`).join(""):'<tr><td colspan="4">No accounts found.</td></tr>';
+    <tr>
+      <td>${safe(a.account_number)}</td>
+      <td>${safe(memberNames[a.member_id]||"Member ID: "+a.member_id.slice(0,8))}</td>
+      <td>${safe(a.status)}</td>
+      <td>${money(balances[a.id]||0)}</td>
+    </tr>`).join(""):'<tr><td colspan="4">No accounts found.</td></tr>';
 
-  const pending=transactions.filter(x=>x.status==="PENDING");
   $("pendingRows").innerHTML=pending.length?pending.map(x=>`
-    <tr><td>${safe(x.transaction_number)}</td><td>${safe(accounts.find(a=>a.id===x.savings_account_id)?.account_number||"")}</td><td>${safe(x.transaction_type)}</td><td>${money(x.amount)}</td><td>${safe(x.recorded_by===user.id?"You":"Another staff member")}</td><td>${has("SUPER_ADMIN","MANAGER")&&x.recorded_by!==user.id?`<button data-approve="${safe(x.id)}">Approve</button>`:"Awaiting authorised approval"}</td></tr>`).join(""):'<tr><td colspan="6">No pending transactions.</td></tr>';
+    <tr>
+      <td>${safe(x.transaction_number)}</td>
+      <td>${safe(accounts.find(a=>a.id===x.savings_account_id)?.account_number||"")}</td>
+      <td>${safe(x.transaction_type)}</td>
+      <td>${money(x.amount)}</td>
+      <td>${safe(x.recorded_by===user.id?"You":"Another staff member")}</td>
+      <td>${has("SUPER_ADMIN","MANAGER")&&x.recorded_by!==user.id?
+        `<button data-approve="${safe(x.id)}">Approve</button>`:
+        "Awaiting authorised approval"}</td>
+    </tr>`).join(""):'<tr><td colspan="6">No pending transactions.</td></tr>';
 
-  $("transactionRows").innerHTML=transactions.length?transactions.slice(0,60).map(x=>`
-    <tr><td>${safe(new Date(x.transaction_date).toLocaleString("en-KE"))}</td><td>${safe(x.transaction_number)}</td><td>${safe(x.transaction_type)}</td><td>${money(x.amount)}</td><td>${safe(x.status)}</td></tr>`).join(""):'<tr><td colspan="5">No transactions found.</td></tr>';
+  $("transactionRows").innerHTML=transactions.length?transactions.map(x=>`
+    <tr>
+      <td>${safe(new Date(x.transaction_date).toLocaleString("en-KE"))}</td>
+      <td>${safe(x.transaction_number)}</td>
+      <td>${safe(x.transaction_type)}</td>
+      <td>${money(x.amount)}</td>
+      <td>${safe(x.status)}</td>
+    </tr>`).join(""):'<tr><td colspan="5">No transactions found.</td></tr>';
 }
 
 $("loginForm").addEventListener("submit",async e=>{
-  e.preventDefault();$("loginBtn").disabled=true;
+  e.preventDefault();
+  $("loginBtn").disabled=true;
   try{
-    if(!URL||!KEY) throw new Error("Open the main GORA app and save its Supabase connection settings first.");
+    if(!URL||!KEY)throw new Error("Open the main GORA app and save its Supabase connection settings first.");
     db=window.supabase.createClient(URL,KEY);
-    const {data,error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});
-    if(error) throw error;
+    const {data,error}=await db.auth.signInWithPassword({
+      email:$("email").value.trim(),password:$("password").value
+    });
+    if(error)throw error;
     user=data.user;
     await loadWorkspace();
     say("Signed in successfully.");
@@ -283,29 +307,35 @@ $("loginForm").addEventListener("submit",async e=>{
 });
 
 $("openForm").addEventListener("submit",async e=>{
-  e.preventDefault();$("openBtn").disabled=true;
+  e.preventDefault();
+  $("openBtn").disabled=true;
   try{
-    if(!has("SUPER_ADMIN","MANAGER","CASHIER")) throw new Error("Not authorised to open accounts.");
+    if(!has("SUPER_ADMIN","MANAGER","CASHIER"))throw new Error("Not authorised to open accounts.");
     const memberId=$("member").value;
-    if(!memberId) throw new Error("Select an approved member.");
-    const branchId=$("branch").value||null;
+    if(!memberId)throw new Error("Select an approved member.");
     await check(await db.rpc("open_savings_account",{
-      _organization_id:orgId,_member_id:memberId,_branch_id:branchId
+      _organization_id:orgId,
+      _member_id:memberId,
+      _branch_id:$("branch").value||null
     }));
     say("Savings account opened successfully.");
-    e.target.reset();await loadData();
+    e.target.reset();
+    await loadData();
   }catch(err){say(err.message,"error");}
   finally{$("openBtn").disabled=false;}
 });
 
 $("transactionForm").addEventListener("submit",async e=>{
-  e.preventDefault();$("recordBtn").disabled=true;
+  e.preventDefault();
+  $("recordBtn").disabled=true;
   try{
-    if(!has("SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER")) throw new Error("Not authorised to record transactions.");
+    if(!has("SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER"))
+      throw new Error("Not authorised to record transactions.");
     const amount=Number($("amount").value);
-    if(!Number.isFinite(amount)||amount<=0) throw new Error("Enter an amount greater than zero.");
+    if(!Number.isFinite(amount)||amount<=0)throw new Error("Enter an amount greater than zero.");
     const accountId=$("account").value;
-    if(!accountId) throw new Error("Select a savings account.");
+    if(!accountId)throw new Error("Select a savings account.");
+
     await check(await db.rpc("record_savings_transaction",{
       _organization_id:orgId,
       _savings_account_id:accountId,
@@ -315,8 +345,10 @@ $("transactionForm").addEventListener("submit",async e=>{
       _reference_number:$("reference").value.trim()||null,
       _description:$("description").value.trim()||null
     }));
+
     say("Transaction recorded as PENDING. It has not changed the posted balance.");
-    e.target.reset();await loadData();
+    e.target.reset();
+    await loadData();
   }catch(err){say(err.message,"error");}
   finally{$("recordBtn").disabled=false;}
 });
@@ -335,7 +367,7 @@ $("pendingRows").addEventListener("click",async e=>{
 });
 
 $("logout").addEventListener("click",async()=>{
-  if(db) await db.auth.signOut();
+  if(db)await db.auth.signOut();
   location.reload();
 });
 
