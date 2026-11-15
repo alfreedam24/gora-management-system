@@ -1,0 +1,320 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GORA | Member Registration</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--navy:#102b46;--teal:#078b83;--bg:#f3f6fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:#243447}
+header{background:var(--navy);color:white;padding:22px}
+header h1{margin:0;font-size:23px}
+header p{margin:6px 0 0;color:#c9d9e8;font-size:13px}
+main{max-width:650px;margin:24px auto;padding:0 14px}
+.card{background:white;padding:22px;border-radius:14px;box-shadow:0 3px 14px #102b4610;margin-bottom:18px}
+h2{font-size:19px;margin:0 0 16px;color:var(--navy)}
+label{display:block;font-size:13px;font-weight:bold;margin:14px 0 6px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d5dde6;border-radius:8px;font-size:15px;background:white}
+textarea{min-height:75px;resize:vertical}
+button{border:0;border-radius:8px;padding:13px 17px;background:var(--teal);color:white;font-weight:bold;font-size:15px;width:100%;margin-top:18px}
+button.secondary{background:var(--navy)}
+button:disabled{opacity:.55}
+.note{font-size:13px;color:#657487;line-height:1.5}
+.status{padding:12px;border-radius:8px;margin-top:14px;font-size:14px;display:none;line-height:1.5}
+.success{background:#e6f6ef;color:#12633e}
+.error{background:#fff0ef;color:#9a2823}
+.hidden{display:none}
+.topline{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.topline button{width:auto;margin:0;padding:9px 13px;font-size:12px}
+footer{text-align:center;color:#8491a0;font-size:12px;padding:20px}
+</style>
+</head>
+<body>
+<header>
+<h1>GORA Savings & Credit Group</h1>
+<p>Member registration portal</p>
+</header>
+
+<main>
+<section class="card" id="loginCard">
+<h2>Staff sign in</h2>
+<p class="note">Sign in using your GORA staff account.</p>
+<form id="loginForm">
+<label>Email address</label>
+<input id="email" type="email" required autocomplete="username">
+<label>Password</label>
+<input id="password" type="password" required autocomplete="current-password">
+<button id="loginBtn">Sign in</button>
+</form>
+<div id="loginMessage" class="status error"></div>
+</section>
+
+<section class="card hidden" id="appCard">
+<div class="topline">
+<div>
+<h2>Register a member</h2>
+<p class="note" id="staffLabel"></p>
+</div>
+<button class="secondary" id="logoutBtn" type="button">Sign out</button>
+</div>
+
+<form id="memberForm">
+<label>Organisation *</label>
+<select id="organisation" required></select>
+
+<label>Full name *</label>
+<input id="full_name" required maxlength="150" autocomplete="name">
+
+<label>Phone number *</label>
+<input id="phone" required type="tel" maxlength="30" placeholder="e.g. 07XXXXXXXX">
+
+<label>National ID number</label>
+<input id="national_id" maxlength="30">
+
+<label>Gender</label>
+<select id="gender">
+<option value="">Select gender</option>
+<option value="FEMALE">Female</option>
+<option value="MALE">Male</option>
+<option value="OTHER">Other</option>
+</select>
+
+<label>Date of birth</label>
+<input id="date_of_birth" type="date">
+
+<label>Branch</label>
+<select id="branch">
+<option value="">No branch selected</option>
+</select>
+
+<label>Chama group</label>
+<select id="chama_group">
+<option value="">No group selected</option>
+</select>
+
+<label>Address</label>
+<textarea id="address" maxlength="500"></textarea>
+
+<p class="note">New registrations are submitted as PENDING. A manager or super administrator must approve the member before a permanent GORA member number is issued.</p>
+
+<button id="registerBtn" type="submit">Submit member registration</button>
+</form>
+<div id="formMessage" class="status"></div>
+</section>
+</main>
+<footer>GORA Savings & Credit Group · Secure member registration</footer>
+
+<script>
+const SUPABASE_URL = localStorage.getItem("gora_url");
+const SUPABASE_KEY = localStorage.getItem("gora_key");
+
+let db = null;
+let currentUser = null;
+let organisations = [];
+
+const $ = id => document.getElementById(id);
+
+function showMessage(id, message, type="error") {
+  const el = $(id);
+  el.textContent = message;
+  el.className = "status " + type;
+  el.style.display = "block";
+}
+
+function hideMessage(id) {
+  $(id).style.display = "none";
+}
+
+function setBusy(button, busy, label) {
+  button.disabled = busy;
+  button.textContent = busy ? "Please wait..." : label;
+}
+
+async function loadOrganisations() {
+  const { data, error } = await db
+    .from("user_roles")
+    .select("organization_id")
+    .eq("user_id", currentUser.id)
+    .eq("is_active", true);
+
+  if (error) throw error;
+
+  const ids = [...new Set((data || []).map(x => x.organization_id))];
+
+  if (!ids.length) {
+    throw new Error("No active organisation assignment was found for this staff account.");
+  }
+
+  const { data: orgs, error: orgError } = await db
+    .from("organizations")
+    .select("id,name")
+    .in("id", ids);
+
+  if (orgError) throw orgError;
+
+  organisations = orgs || [];
+  $("organisation").innerHTML = "";
+
+  organisations.forEach(org => {
+    const option = document.createElement("option");
+    option.value = org.id;
+    option.textContent = org.name;
+    $("organisation").appendChild(option);
+  });
+
+  await loadBranchesAndGroups();
+}
+
+async function loadBranchesAndGroups() {
+  const orgId = $("organisation").value;
+  $("branch").innerHTML = '<option value="">No branch selected</option>';
+  $("chama_group").innerHTML = '<option value="">No group selected</option>';
+
+  if (!orgId) return;
+
+  const [branchResult, groupResult] = await Promise.all([
+    db.from("branches")
+      .select("id,branch_name")
+      .eq("organization_id", orgId)
+      .eq("status", "ACTIVE"),
+    db.from("chama_groups")
+      .select("id,group_name")
+      .eq("organization_id", orgId)
+      .eq("status", "ACTIVE")
+  ]);
+
+  if (branchResult.error) throw branchResult.error;
+  if (groupResult.error) throw groupResult.error;
+
+  (branchResult.data || []).forEach(branch => {
+    const option = document.createElement("option");
+    option.value = branch.id;
+    option.textContent = branch.branch_name;
+    $("branch").appendChild(option);
+  });
+
+  (groupResult.data || []).forEach(group => {
+    const option = document.createElement("option");
+    option.value = group.id;
+    option.textContent = group.group_name;
+    $("chama_group").appendChild(option);
+  });
+}
+
+async function openPortal(user) {
+  currentUser = user;
+  $("loginCard").classList.add("hidden");
+  $("appCard").classList.remove("hidden");
+  $("staffLabel").textContent = "Signed in: " + (user.email || "GORA staff");
+
+  try {
+    await loadOrganisations();
+  } catch (error) {
+    showMessage("formMessage", "Could not load staff organisation or registration lists: " + error.message);
+  }
+}
+
+async function startApp() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    showMessage("loginMessage",
+      "GORA connection settings were not found. Open the existing GORA app and configure its Supabase URL and publishable key first.");
+    return;
+  }
+
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const { data, error } = await db.auth.getSession();
+  if (error) {
+    showMessage("loginMessage", error.message);
+    return;
+  }
+
+  if (data.session) {
+    await openPortal(data.session.user);
+  }
+}
+
+$("loginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  hideMessage("loginMessage");
+  setBusy($("loginBtn"), true, "Sign in");
+
+  try {
+    if (!db) throw new Error("GORA connection settings are missing.");
+
+    const { data, error } = await db.auth.signInWithPassword({
+      email: $("email").value.trim(),
+      password: $("password").value
+    });
+
+    if (error) throw error;
+    await openPortal(data.user);
+  } catch (error) {
+    showMessage("loginMessage", error.message);
+  } finally {
+    setBusy($("loginBtn"), false, "Sign in");
+  }
+});
+
+$("organisation").addEventListener("change", async () => {
+  hideMessage("formMessage");
+  try {
+    await loadBranchesAndGroups();
+  } catch (error) {
+    showMessage("formMessage", error.message);
+  }
+});
+
+$("memberForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  hideMessage("formMessage");
+  setBusy($("registerBtn"), true, "Submit member registration");
+
+  try {
+    if (!currentUser) throw new Error("Please sign in again.");
+
+    const payload = {
+      _organization_id: $("organisation").value,
+      _full_name: $("full_name").value.trim(),
+      _phone: $("phone").value.trim(),
+      _branch_id: $("branch").value || null,
+      _chama_group_id: $("chama_group").value || null,
+      _national_id: $("national_id").value.trim() || null,
+      _gender: $("gender").value || null,
+      _date_of_birth: $("date_of_birth").value || null,
+      _address: $("address").value.trim() || null
+    };
+
+    const { data, error } = await db.rpc("register_member", payload);
+    if (error) throw error;
+
+    showMessage(
+      "formMessage",
+      "Registration submitted successfully. Status: PENDING. Registration reference: " + data + ". A manager or super administrator must approve this member before a member number is issued.",
+      "success"
+    );
+
+    $("memberForm").reset();
+    await loadBranchesAndGroups();
+
+  } catch (error) {
+    showMessage("formMessage", "Registration failed: " + error.message);
+  } finally {
+    setBusy($("registerBtn"), false, "Submit member registration");
+  }
+});
+
+$("logoutBtn").addEventListener("click", async () => {
+  if (db) await db.auth.signOut();
+  currentUser = null;
+  $("appCard").classList.add("hidden");
+  $("loginCard").classList.remove("hidden");
+});
+
+startApp();
+</script>
+</body>
+</html>
