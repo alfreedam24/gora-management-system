@@ -1,0 +1,432 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GORA - Chama Management</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--navy:#102b46;--teal:#078b83;--bg:#f3f6fa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:#263747}
+header{background:var(--navy);color:white;padding:22px}
+header h1{margin:0;font-size:22px}
+header p{margin:6px 0 0;color:#cbd8e5}
+main{max-width:850px;margin:22px auto;padding:0 14px}
+.card{background:white;padding:19px;border-radius:13px;margin-bottom:16px;box-shadow:0 3px 14px #102b4610}
+h2{font-size:18px;color:var(--navy);margin:0 0 14px}
+label{display:block;font-size:13px;font-weight:bold;margin:12px 0 6px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d5dde6;border-radius:8px;background:white;font-size:15px}
+button{border:0;border-radius:8px;padding:12px 15px;color:white;font-weight:bold;background:var(--teal);cursor:pointer}
+button:disabled{opacity:.5}
+.secondary{background:var(--navy)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.muted{font-size:13px;color:#718096;line-height:1.5}
+.status{display:none;padding:12px;border-radius:8px;margin:12px 0;font-size:14px}
+.success{display:block;background:#e6f6ef;color:#12633e}
+.error{display:block;background:#fff0ef;color:#9a2823}
+.hidden{display:none}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.item{border:1px solid #e0e7ed;border-radius:10px;padding:14px;margin:10px 0}
+.item strong{color:var(--navy)}
+.tag{font-size:12px;background:#e8f5f3;color:#08756e;padding:4px 8px;border-radius:20px}
+.empty{text-align:center;padding:22px;color:#718096}
+footer{text-align:center;padding:18px;color:#8491a0;font-size:12px}
+@media(max-width:560px){.grid{grid-template-columns:1fr}.top{align-items:flex-start}}
+</style>
+</head>
+<body>
+<header>
+<h1>GORA Savings & Credit Group</h1>
+<p>Chama management</p>
+</header>
+
+<main>
+<section class="card" id="loginCard">
+<h2>Staff sign in</h2>
+<p class="muted">Authorised manager or super administrator access only.</p>
+<form id="loginForm">
+<label>Email</label>
+<input id="email" type="email" required>
+<label>Password</label>
+<input id="password" type="password" required>
+<button id="loginBtn" style="width:100%;margin-top:16px">Sign in</button>
+</form>
+<div id="loginMessage" class="status"></div>
+</section>
+
+<section id="app" class="hidden">
+<div class="card">
+<div class="top">
+<div>
+<h2>Chama workspace</h2>
+<div class="muted" id="staffLabel"></div>
+</div>
+<button class="secondary" id="logoutBtn">Sign out</button>
+</div>
+<label>Organisation</label>
+<select id="orgSelect"></select>
+<div id="pageMessage" class="status"></div>
+</div>
+
+<div class="card">
+<h2>Create a chama group</h2>
+<form id="createForm">
+<div class="grid">
+<div>
+<label>Group code *</label>
+<input id="groupCode" required placeholder="e.g. KLF-001">
+</div>
+<div>
+<label>Group name *</label>
+<input id="groupName" required placeholder="e.g. Kilifi Women Group">
+</div>
+<div>
+<label>Branch</label>
+<select id="branchSelect">
+<option value="">Head office / no branch</option>
+</select>
+</div>
+<div>
+<label>Meeting frequency *</label>
+<select id="frequency">
+<option value="WEEKLY">Weekly</option>
+<option value="BIWEEKLY">Biweekly</option>
+<option value="MONTHLY">Monthly</option>
+</select>
+</div>
+<div>
+<label>Meeting day</label>
+<select id="meetingDay">
+<option value="">Not set</option>
+<option>Monday</option><option>Tuesday</option>
+<option>Wednesday</option><option>Thursday</option>
+<option>Friday</option><option>Saturday</option>
+<option>Sunday</option>
+</select>
+</div>
+<div>
+<label>Weekly savings target (KSh)</label>
+<input id="target" type="number" min="0" value="100" required>
+</div>
+</div>
+<label>Description</label>
+<textarea id="description" rows="2"></textarea>
+<button id="createBtn" style="width:100%;margin-top:16px">Create chama group</button>
+</form>
+</div>
+
+<div class="card">
+<div class="top">
+<h2>Existing chama groups</h2>
+<button class="secondary" id="refreshBtn">Refresh</button>
+</div>
+<div id="groupsList"><div class="empty">Loading groups...</div></div>
+</div>
+
+<div class="card">
+<h2>Assign or transfer a member</h2>
+<p class="muted">Only approved or active members can be assigned. Previous group history is preserved.</p>
+<label>Member</label>
+<select id="memberSelect"><option value="">Select member</option></select>
+<label>Destination chama</label>
+<select id="destinationSelect"><option value="">Select group</option></select>
+<label>Join / transfer date</label>
+<input id="joinDate" type="date">
+<button id="assignBtn" style="width:100%;margin-top:16px">Assign member to chama</button>
+</div>
+</section>
+</main>
+<footer>GORA Savings & Credit Group</footer>
+
+<script>
+const URL=localStorage.getItem("gora_url");
+const KEY=localStorage.getItem("gora_key");
+let db=null,user=null,orgIds=[];
+
+const $=id=>document.getElementById(id);
+
+function message(id,text,type="error"){
+ const e=$(id);
+ e.textContent=text;
+ e.className="status "+type;
+}
+function clearMessage(id){
+ $(id).textContent="";
+ $(id).className="status";
+}
+function busy(btn,on,label){
+ btn.disabled=on;
+ btn.textContent=on?"Please wait...":label;
+}
+
+async function loadWorkspace(){
+ const {data,error}=await db.from("user_roles")
+ .select("organization_id,role:roles(role_code)")
+ .eq("user_id",user.id)
+ .eq("is_active",true);
+
+ if(error)throw error;
+
+ orgIds=[...new Set((data||[])
+ .filter(x=>{
+  const role=Array.isArray(x.role)?x.role[0]:x.role;
+  return role&&["SUPER_ADMIN","MANAGER"].includes(role.role_code);
+ })
+ .map(x=>x.organization_id))];
+
+ if(!orgIds.length)
+  throw new Error("Access denied. Manager or super administrator access is required.");
+
+ const {data:orgs,error:orgError}=await db.from("organizations")
+ .select("id,name").in("id",orgIds);
+
+ if(orgError)throw orgError;
+
+ $("orgSelect").replaceChildren();
+
+ (orgs||[]).forEach(o=>{
+  const option=document.createElement("option");
+  option.value=o.id;
+  option.textContent=o.name;
+  $("orgSelect").append(option);
+ });
+
+ await loadReferenceData();
+}
+
+async function loadReferenceData(){
+ const org=$("orgSelect").value;
+ if(!org||!orgIds.includes(org))return;
+
+ const [branches,groups,members]=await Promise.all([
+  db.from("branches").select("id,branch_name")
+   .eq("organization_id",org).eq("status","ACTIVE")
+   .order("branch_name"),
+
+  db.from("chama_groups")
+   .select("id,group_code,group_name,status,meeting_frequency,meeting_day,target_weekly_savings")
+   .eq("organization_id",org)
+   .order("created_at",{ascending:false}),
+
+  db.from("members")
+   .select("id,member_number,full_name,status,chama_group_id")
+   .eq("organization_id",org)
+   .in("status",["APPROVED","ACTIVE"])
+   .order("full_name")
+ ]);
+
+ if(branches.error)throw branches.error;
+ if(groups.error)throw groups.error;
+ if(members.error)throw members.error;
+
+ $("branchSelect").innerHTML='<option value="">Head office / no branch</option>';
+
+ (branches.data||[]).forEach(b=>{
+  const o=document.createElement("option");
+  o.value=b.id;
+  o.textContent=b.branch_name;
+  $("branchSelect").append(o);
+ });
+
+ $("groupsList").replaceChildren();
+ $("destinationSelect").innerHTML='<option value="">Select group</option>';
+
+ (groups.data||[]).forEach(g=>{
+  const item=document.createElement("div");
+  item.className="item";
+
+  const title=document.createElement("strong");
+  title.textContent=g.group_code+" — "+g.group_name;
+
+  const tag=document.createElement("span");
+  tag.className="tag";
+  tag.textContent=g.status;
+
+  const detail=document.createElement("div");
+  detail.className="muted";
+  detail.textContent=(g.meeting_frequency||"WEEKLY")
+   +(g.meeting_day?" · "+g.meeting_day:"")
+   +" · Weekly target KSh "
+   +Number(g.target_weekly_savings||0).toLocaleString();
+
+  item.append(title,document.createTextNode(" "),tag,detail);
+  $("groupsList").append(item);
+
+  if(g.status==="ACTIVE"){
+   const o=document.createElement("option");
+   o.value=g.id;
+   o.textContent=g.group_code+" — "+g.group_name;
+   $("destinationSelect").append(o);
+  }
+ });
+
+ if(!(groups.data||[]).length)
+  $("groupsList").innerHTML='<div class="empty">No chama groups yet.</div>';
+
+ $("memberSelect").innerHTML='<option value="">Select member</option>';
+
+ (members.data||[]).forEach(m=>{
+  const o=document.createElement("option");
+  o.value=m.id;
+  o.textContent=(m.member_number?m.member_number+" · ":"")
+   +m.full_name+" ("+m.status+")"
+   +(m.chama_group_id?" · currently assigned":" · unassigned");
+  $("memberSelect").append(o);
+ });
+
+ if(!(members.data||[]).length)
+  $("memberSelect").innerHTML='<option value="">No approved or active members</option>';
+}
+
+$("loginForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ const btn=$("loginBtn");
+ busy(btn,true,"Sign in");
+
+ try{
+  if(!db)throw new Error("GORA connection settings were not found. Open the main GORA app and configure its connection first.");
+
+  const {data,error}=await db.auth.signInWithPassword({
+   email:$("email").value.trim(),
+   password:$("password").value
+  });
+
+  if(error)throw error;
+
+  user=data.user;
+  $("loginCard").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  $("staffLabel").textContent="Signed in: "+(user.email||"staff");
+
+  await loadWorkspace();
+ }catch(err){
+  message("loginMessage",err.message);
+ }finally{
+  busy(btn,false,"Sign in");
+ }
+});
+
+$("orgSelect").addEventListener("change",()=>{
+ loadReferenceData().catch(e=>message("pageMessage",e.message));
+});
+
+$("createForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ clearMessage("pageMessage");
+
+ const btn=$("createBtn");
+ busy(btn,true,"Create chama group");
+
+ try{
+  const org=$("orgSelect").value;
+  if(!orgIds.includes(org))throw new Error("Select an authorised organisation.");
+
+  const {data,error}=await db.rpc("create_chama_group",{
+   _organization_id:org,
+   _group_code:$("groupCode").value.trim(),
+   _group_name:$("groupName").value.trim(),
+   _branch_id:$("branchSelect").value||null,
+   _meeting_frequency:$("frequency").value,
+   _meeting_day:$("meetingDay").value||null,
+   _target_weekly_savings:Number($("target").value),
+   _description:$("description").value.trim()||null
+  });
+
+  if(error)throw error;
+
+  $("createForm").reset();
+  $("target").value="100";
+
+  message("pageMessage","Chama group created successfully. Reference: "+data,"success");
+  await loadReferenceData();
+
+ }catch(err){
+  message("pageMessage","Could not create group: "+err.message);
+ }finally{
+  busy(btn,false,"Create chama group");
+ }
+});
+
+$("assignBtn").addEventListener("click",async()=>{
+ clearMessage("pageMessage");
+ const btn=$("assignBtn");
+ busy(btn,true,"Assign member to chama");
+
+ try{
+  const member=$("memberSelect").value;
+  const group=$("destinationSelect").value;
+
+  if(!member||!group)
+   throw new Error("Select both a member and destination chama.");
+
+  const date=$("joinDate").value||new Date().toISOString().slice(0,10);
+
+  const {data,error}=await db.rpc("assign_member_to_chama",{
+   _member_id:member,
+   _group_id:group,
+   _joined_at:date
+  });
+
+  if(error)throw error;
+
+  message("pageMessage","Member assigned successfully. Membership record: "+data,"success");
+  await loadReferenceData();
+
+ }catch(err){
+  message("pageMessage","Assignment failed: "+err.message);
+ }finally{
+  busy(btn,false,"Assign member to chama");
+ }
+});
+
+$("refreshBtn").addEventListener("click",async()=>{
+ clearMessage("pageMessage");
+ try{
+  await loadReferenceData();
+  message("pageMessage","Chama information refreshed.","success");
+ }catch(e){
+  message("pageMessage",e.message);
+ }
+});
+
+$("logoutBtn").addEventListener("click",async()=>{
+ if(db)await db.auth.signOut();
+ user=null;
+ $("app").classList.add("hidden");
+ $("loginCard").classList.remove("hidden");
+});
+
+async function init(){
+ if(!URL||!KEY){
+  message("loginMessage","GORA connection settings were not found. Open the existing GORA app and configure its connection first.");
+  return;
+ }
+
+ db=window.supabase.createClient(URL,KEY);
+
+ const {data,error}=await db.auth.getSession();
+ if(error){
+  message("loginMessage",error.message);
+  return;
+ }
+
+ if(data.session){
+  user=data.session.user;
+  $("loginCard").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  $("staffLabel").textContent="Signed in: "+(user.email||"staff");
+
+  try{
+   await loadWorkspace();
+  }catch(e){
+   message("pageMessage",e.message);
+  }
+ }
+}
+
+init();
+</script>
+</body>
+</html>
