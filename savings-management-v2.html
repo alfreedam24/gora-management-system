@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GORA Savings Management</title><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--n:#102b46;--t:#078b83;--bg:#f2f6fa}*{box-sizing:border-box}body{margin:0;background:var(--bg);font:15px Arial;color:#24384b}header{background:var(--n);color:white;padding:20px}main{max-width:1000px;margin:20px auto;padding:0 14px}.card{background:white;border-radius:12px;padding:18px;margin:14px 0;box-shadow:0 2px 12px #102b4610}h1{font-size:21px;margin:0}h2{font-size:17px;color:var(--n);margin:0 0 12px}label{display:block;font-weight:bold;font-size:13px;margin:12px 0 6px}input,select{width:100%;padding:12px;border:1px solid #ccd7e1;border-radius:8px;font-size:15px}button{background:var(--t);color:white;border:0;border-radius:8px;padding:12px 15px;font-weight:bold}button:disabled{opacity:.5}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{background:#f6f9fb;padding:14px;border-radius:9px}.stat small{display:block;color:#718096}.stat b{display:block;font-size:20px;color:var(--n);margin-top:6px}.muted{font-size:13px;color:#718096;line-height:1.5}.msg{padding:12px;margin-top:12px;border-radius:8px;white-space:pre-wrap}.ok{background:#e7f6ee;color:#17613e}.err{background:#fff0ef;color:#982b25}.hidden{display:none!important}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:600px}td,th{text-align:left;padding:10px;border-bottom:1px solid #e1e7ed;font-size:13px}th{background:#f6f8fa}.item{border:1px solid #dce5ec;border-radius:9px;padding:12px;margin:9px 0}@media(max-width:650px){.grid,.stats{grid-template-columns:1fr}}
+</style></head><body><header><h1>GORA Savings Management</h1><div class="muted" style="color:#cbd8e5">Member accounts · Deposits · Withdrawals · Approvals</div></header>
+<main>
+<section class="card" id="login"><h2>Staff sign in</h2><form id="loginForm"><label>Email</label><input id="email" type="email" required><label>Password</label><input id="password" type="password" required><button id="loginBtn" style="width:100%;margin-top:15px">Sign in</button></form><div id="loginMsg"></div></section>
+<section id="app" class="hidden">
+<div class="card"><button id="logout" style="float:right;background:#102b46">Sign out</button><h2>Savings workspace</h2><div id="staff" class="muted"></div><label>Organisation</label><select id="org"></select><div id="msg"></div></div>
+<div class="stats"><div class="stat"><small>Active accounts</small><b id="count">—</b></div><div class="stat"><small>Posted savings balance</small><b id="balance">KSh 0.00</b></div><div class="stat"><small>Pending transactions</small><b id="pendingCount">—</b></div></div>
+<div class="card"><h2>Open savings account</h2><form id="openForm"><div class="grid"><div><label>Approved member</label><select id="member" required></select></div><div><label>Branch</label><select id="branch"><option value="">Head office / no branch</option></select></div></div><button id="openBtn" style="width:100%;margin-top:14px">Open account</button></form></div>
+<div class="card"><h2>Record deposit / withdrawal</h2><form id="txForm"><div class="grid">
+<div><label>Account</label><select id="account" required></select></div><div><label>Type</label><select id="type"><option>DEPOSIT</option><option>WITHDRAWAL</option></select></div>
+<div><label>Amount (KSh)</label><input id="amount" type="number" min="1" step=".01" required></div><div><label>Payment method</label><select id="method"><option>CASH</option><option>MPESA</option><option>BANK</option><option>OTHER</option></select></div>
+<div><label>Reference</label><input id="reference"></div><div><label>Description</label><input id="description"></div></div>
+<p class="muted">New transactions remain PENDING until a different authorised manager approves them. Pending amounts do not affect the posted balance.</p><button id="recordBtn" style="width:100%">Record for approval</button></form></div>
+<div class="card"><h2>Pending approvals</h2><div id="pendingList" class="muted">No pending transactions.</div></div>
+<div class="card"><h2>Savings accounts</h2><div class="tablewrap"><table><thead><tr><th>Account</th><th>Member</th><th>Status</th><th>Balance</th></tr></thead><tbody id="accounts"></tbody></table></div></div>
+<div class="card"><h2>Recent transactions</h2><div class="tablewrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Member</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead><tbody id="transactions"></tbody></table></div></div>
+</section></main>
+<script>
+const URL=localStorage.getItem("gora_url"),KEY=localStorage.getItem("gora_key"),$=id=>document.getElementById(id);
+let db,user,orgIds=[],roles=[],accounts=[],members=[],txns=[];
+const cash=n=>"KSh "+Number(n||0).toLocaleString("en-KE",{minimumFractionDigits:2,maximumFractionDigits:2});
+function message(s,ok=false){$("msg").className="msg "+(ok?"ok":"err");$("msg").textContent=s}
+function roleOf(x){let r=Array.isArray(x.role)?x.role[0]:x.role;return r?.role_code}
+async function start(){
+ let {data,error}=await db.from("user_roles").select("organization_id,role:roles(role_code)").eq("user_id",user.id).eq("is_active",true);if(error)throw error;
+ roles=(data||[]).map(roleOf);orgIds=[...new Set((data||[]).filter(x=>["SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER"].includes(roleOf(x))).map(x=>x.organization_id))];
+ if(!orgIds.length)throw Error("No authorised GORA savings role found.");
+ let q=await db.from("organizations").select("id,name").in("id",orgIds);if(q.error)throw q.error;
+ $("org").replaceChildren();q.data.forEach(x=>{let o=document.createElement("option");o.value=x.id;o.textContent=x.name;$("org").append(o)});await load();
+}
+async function load(){
+ const id=$("org").value;if(!orgIds.includes(id))return;
+ let [a,m,t,b]=await Promise.all([
+ db.from("savings_accounts").select("id,account_number,status,member_id").eq("organization_id",id).order("opened_at",{ascending:false}),
+ db.from("members").select("id,member_number,full_name,status").eq("organization_id",id).in("status",["APPROVED","ACTIVE"]).order("full_name"),
+ db.from("savings_transactions").select("id,transaction_number,savings_account_id,transaction_type,amount,status,payment_method,transaction_date,created_at").eq("organization_id",id).order("created_at",{ascending:false}).limit(100),
+ db.from("branches").select("id,branch_name").eq("organization_id",id).eq("status","ACTIVE").order("branch_name")]);
+ for(let x of [a,m,t,b])if(x.error)throw x.error;accounts=a.data||[];members=m.data||[];txns=t.data||[];
+ let mb=new Map(members.map(x=>[x.id,x])),bal=new Map();txns.filter(x=>x.status==="POSTED").forEach(x=>bal.set(x.savings_account_id,(bal.get(x.savings_account_id)||0)+(x.transaction_type==="DEPOSIT"?1:-1)*Number(x.amount)));
+ let pend=txns.filter(x=>x.status==="PENDING");$("count").textContent=accounts.filter(x=>x.status==="ACTIVE").length;$("balance").textContent=cash([...bal.values()].reduce((s,x)=>s+x,0));$("pendingCount").textContent=pend.length;
+ $("member").innerHTML='<option value="">Select approved member</option>';members.filter(x=>!accounts.some(a=>a.member_id===x.id)).forEach(x=>{let o=document.createElement("option");o.value=x.id;o.textContent=(x.member_number?x.member_number+" · ":"")+x.full_name;$("member").append(o)});
+ $("branch").innerHTML='<option value="">Head office / no branch</option>';(b.data||[]).forEach(x=>{let o=document.createElement("option");o.value=x.id;o.textContent=x.branch_name;$("branch").append(o)});
+ $("account").innerHTML='<option value="">Select account</option>';accounts.filter(x=>x.status==="ACTIVE").forEach(x=>{let o=document.createElement("option");o.value=x.id;o.textContent=x.account_number+" · "+(mb.get(x.member_id)?.full_name||"Member");$("account").append(o)});
+ $("accounts").replaceChildren();accounts.forEach(x=>{let tr=document.createElement("tr");[x.account_number,mb.get(x.member_id)?.full_name||"Member",x.status,cash(bal.get(x.id)||0)].forEach(v=>{let td=document.createElement("td");td.textContent=v;tr.append(td)});$("accounts").append(tr)});
+ if(!accounts.length)$("accounts").innerHTML='<tr><td colspan="4">No savings accounts.</td></tr>';
+ $("transactions").replaceChildren();txns.slice(0,50).forEach(x=>{let acc=accounts.find(a=>a.id===x.savings_account_id),vals=[new Date(x.transaction_date).toLocaleString("en-KE"),x.transaction_number,mb.get(acc?.member_id)?.full_name||"Member",x.transaction_type,cash(x.amount),x.status],tr=document.createElement("tr");vals.forEach(v=>{let td=document.createElement("td");td.textContent=v;tr.append(td)});$("transactions").append(tr)});
+ $("pendingList").replaceChildren();if(!pend.length)$("pendingList").textContent="No pending transactions.";
+ pend.forEach(x=>{let acc=accounts.find(a=>a.id===x.savings_account_id),box=document.createElement("div");box.className="item";let txt=document.createElement("div");txt.textContent=x.transaction_number+" · "+(mb.get(acc?.member_id)?.full_name||"Member")+" · "+x.transaction_type+" · "+cash(x.amount)+" · "+x.payment_method;box.append(txt);
+ if(roles.some(r=>["SUPER_ADMIN","MANAGER"].includes(r))){let btn=document.createElement("button");btn.textContent="Approve and post";btn.onclick=async()=>{btn.disabled=true;try{let z=await db.rpc("approve_savings_transaction",{_transaction_id:x.id});if(z.error)throw z.error;message("Posted transaction "+z.data,true);await load()}catch(e){message("Approval failed: "+e.message)}finally{btn.disabled=false}};box.append(btn)}$("pendingList").append(box)});
+}
+$("loginForm").onsubmit=async e=>{e.preventDefault();$("loginBtn").disabled=true;try{if(!URL||!KEY)throw Error("Open the existing GORA app and save its Supabase URL and public key first.");db=window.supabase.createClient(URL,KEY);let r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(r.error)throw r.error;user=r.data.user;$("login").classList.add("hidden");$("app").classList.remove("hidden");$("staff").textContent="Signed in: "+user.email;await start()}catch(e){$("loginMsg").className="msg err";$("loginMsg").textContent=e.message}finally{$("loginBtn").disabled=false}};
+$("org").onchange=()=>load().catch(e=>message(e.message));
+$("openForm").onsubmit=async e=>{e.preventDefault();$("openBtn").disabled=true;try{let r=await db.rpc("open_savings_account",{_organization_id:$("org").value,_member_id:$("member").value,_branch_id:$("branch").value||null});if(r.error)throw r.error;message("Savings account opened. Reference: "+r.data,true);await load()}catch(x){message("Could not open account: "+x.message)}finally{$("openBtn").disabled=false}};
+$("txForm").onsubmit=async e=>{e.preventDefault();$("recordBtn").disabled=true;try{let amt=Number($("amount").value);if(!(amt>0))throw Error("Enter an amount greater than zero.");let r=await db.rpc("record_savings_transaction",{_organization_id:$("org").value,_savings_account_id:$("account").value,_transaction_type:$("type").value,_amount:amt,_payment_method:$("method").value,_reference_number:$("reference").value.trim()||null,_description:$("description").value.trim()||null});if(r.error)throw r.error;message("Transaction saved as PENDING. Reference: "+r.data,true);$("txForm").reset();await load()}catch(x){message("Could not record transaction: "+x.message)}finally{$("recordBtn").disabled=false}};
+$("logout").onclick=async()=>{await db.auth.signOut();location.reload()};
+</script></body></html>
