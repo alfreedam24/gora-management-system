@@ -3,10 +3,15 @@
   const money = n => new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES',maximumFractionDigits:0}).format(Number(n||0));
   const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const dateKE = v => v ? new Date(v).toLocaleString('en-KE',{timeZone:'Africa/Nairobi'}) : '—';
-  const startOf = (days) => { const d=new Date(); d.setDate(d.getDate()-days); return d; };
   const stat = (label,value,foot='',tone='blue') => `<article class="stat ${tone}"><div class="label">${label}</div><strong>${value}</strong><div class="foot">${foot}</div></article>`;
   const panel = (title,body) => `<section class="panel"><h3>${title}</h3>${body}</section>`;
-  const unavailable = 'Not configured';
+  const miniBars = (items, key, formatter = v => String(v)) => {
+    const max = Math.max(1, ...items.map(x => Number(x[key] || 0)));
+    return items.map(x => {
+      const value = Number(x[key] || 0);
+      return `<div class="gora-chart-row"><span>${esc(x.month)}</span><div class="gora-bars"><i style="width:${value/max*100}%" title="${esc(formatter(value))}"></i></div><small>${esc(formatter(value))}</small></div>`;
+    }).join('');
+  };
   async function runDashboard(host, branchId = '') {
     host.innerHTML='<div class="panel">Loading verified GORA dashboard data…</div>';
     try {
@@ -62,6 +67,13 @@
         const rows=posted.filter(t=>String(t.transaction_date).slice(0,7)===k);
         return {month:new Date(k+'-01T12:00:00').toLocaleDateString('en-KE',{month:'short'}),deposits:sum(rows.filter(isDeposit),t=>t.amount),withdrawals:sum(rows.filter(isWithdrawal),t=>t.amount)};
       });
+      const countTrend = (rows, dateField) => monthKeys.map(k => ({
+        month:new Date(k+'-01T12:00:00').toLocaleDateString('en-KE',{month:'short'}),
+        count:rows.filter(x=>String(x[dateField]||'').slice(0,7)===k).length
+      }));
+      const groupTrend=countTrend(G,'created_at');
+      const memberTrend=countTrend(M,'registration_date');
+      const applicationTrend=countTrend(L,'applied_at');
       const max=Math.max(1,...trend.flatMap(x=>[x.deposits,x.withdrawals]));
       const bars=trend.map(x=>`<div class="gora-chart-row"><span>${x.month}</span><div class="gora-bars"><i title="Deposits ${money(x.deposits)}" style="width:${x.deposits/max*100}%"></i><b title="Withdrawals ${money(x.withdrawals)}" style="width:${x.withdrawals/max*100}%"></b></div><small>${money(x.deposits)}</small></div>`).join('');
       const branchOptions=B.map(x=>`<option value="${x.id}">${esc(x.branch_name)}</option>`).join('');
@@ -79,6 +91,14 @@
         ${stat('Today’s withdrawals',money(todayWithdrawals),'Approved and posted today','warn')}
       </div>
       <div class="notice">Member savings are liabilities, not GORA lending capital. These savings figures are posted transaction totals, not the current member savings liability. Loan disbursements, outstanding principal, repayments, arrears, profit, available lending capital and cash/bank/M-Pesa balances are not displayed because the required verified loan and accounting ledgers are not yet present.</div>
+      <div class="grid-two">
+        ${panel('Chama group growth — new groups per month',miniBars(groupTrend,'count'))}
+        ${panel('Member growth — new registrations per month',miniBars(memberTrend,'count'))}
+      </div>
+      <div class="grid-two">
+        ${panel('Loan application activity — applications per month',miniBars(applicationTrend,'count'))}
+        ${panel('Loan disbursement and arrears trends',`<div class="notice">Not yet available: the verified loan disbursement, repayment allocation and instalment ledger tables are not configured in this database. These graphs will appear after the loan ledger module is completed. Loan applications are not counted as disbursements.</div>`)}
+      </div>
       <div class="grid-two">
         ${panel('Savings activity — last six months',`<div class="gora-legend"><span><i></i> Deposits</span><span><b></b> Withdrawals</span></div>${bars||'<p>No posted transactions yet.</p>'}`)}
         ${panel('Today’s operations',`<div class="metric-line"><span>Deposits posted</span><b>${money(todayDeposits)}</b></div><div class="metric-line"><span>Withdrawals posted</span><b>${money(todayWithdrawals)}</b></div><div class="metric-line"><span>Repayment-type transactions</span><b>${money(todayRepayments)}</b></div><div class="metric-line"><span>Transactions awaiting approval</span><b>${pendingTx.length}</b></div><div class="metric-line"><span>Applications awaiting review</span><b>${pendingApps.length}</b></div>`)}
@@ -101,9 +121,6 @@
     }
   }
   window.dashboard = runDashboard;
-  // app.js defines load() before this file is loaded. Wrap that route so the
-  // Dashboard menu and post-login redirect use this renderer without altering
-  // any other module.
   if (typeof window.load === 'function') {
     const originalLoad = window.load;
     window.load = async function(page) {
