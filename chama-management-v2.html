@@ -1,435 +1,65 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GORA - Chama Management</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GORA | Chama Management</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{--navy:#102b46;--teal:#078b83;--bg:#f3f6fa}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:#263747}
-header{background:var(--navy);color:white;padding:22px}
-header h1{margin:0;font-size:22px}
-header p{margin:6px 0 0;color:#cbd8e5}
-main{max-width:850px;margin:22px auto;padding:0 14px}
-.card{background:white;padding:19px;border-radius:13px;margin-bottom:16px;box-shadow:0 3px 14px #102b4610}
-h2{font-size:18px;color:var(--navy);margin:0 0 14px}
-label{display:block;font-size:13px;font-weight:bold;margin:12px 0 6px}
-input,select,textarea{width:100%;padding:12px;border:1px solid #d5dde6;border-radius:8px;background:white;font-size:15px}
-button{border:0;border-radius:8px;padding:12px 15px;color:white;font-weight:bold;background:var(--teal);cursor:pointer}
-button:disabled{opacity:.5}
-.secondary{background:var(--navy)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.muted{font-size:13px;color:#718096;line-height:1.5}
-.status{display:none;padding:12px;border-radius:8px;margin:12px 0;font-size:14px}
-.success{display:block;background:#e6f6ef;color:#12633e}
-.error{display:block;background:#fff0ef;color:#9a2823}
-.hidden{display:none}
-.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.item{border:1px solid #e0e7ed;border-radius:10px;padding:14px;margin:10px 0}
-.item strong{color:var(--navy)}
-.tag{font-size:12px;background:#e8f5f3;color:#08756e;padding:4px 8px;border-radius:20px}
-.pending-tag{background:#fff2d9;color:#815400}
-.empty{text-align:center;padding:22px;color:#718096}
-footer{text-align:center;padding:18px;color:#8491a0;font-size:12px}
-@media(max-width:560px){.grid{grid-template-columns:1fr}.top{align-items:flex-start}}
+:root{--blue:#123f78;--blue2:#1769aa;--bg:#f3f6fa;--ink:#172536;--muted:#66768a;--line:#dce4ed;--green:#16794b;--red:#b42318;--amber:#946200}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px Arial,sans-serif}.top{background:var(--blue);color:white;padding:17px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.top h1{font-size:20px;margin:0}.top a{color:white}.wrap{max-width:1180px;margin:20px auto;padding:0 14px}.notice{padding:12px 14px;border-radius:9px;margin:12px 0;background:#e8f1fb;color:#164675}.error{background:#fdebea;color:#922}.success{background:#e7f6ed;color:#12633b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.card{background:white;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 2px 7px #1725360a}.card h2,.card h3{margin:0 0 12px}.card h2{font-size:18px}.card h3{font-size:16px}.muted{color:var(--muted)}label{display:block;font-size:13px;font-weight:700;margin:9px 0 5px}input,select,textarea{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;background:white}textarea{min-height:75px;resize:vertical}.btn{border:0;border-radius:8px;padding:10px 14px;background:var(--blue2);color:white;font-weight:700;cursor:pointer;margin:5px 5px 0 0}.btn.secondary{background:#e8eef5;color:#18324d}.btn.danger{background:#a52a2a}.btn:disabled{opacity:.5;cursor:not-allowed}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:150px}.stats{font-size:24px;font-weight:700;color:var(--blue)}.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#e8eef5;font-size:12px;font-weight:700}.pill.PENDING{background:#fff1cc;color:#765100}.pill.ACTIVE{background:#e4f5eb;color:#12633b}.pill.REJECTED,.pill.CLOSED{background:#fdebea;color:#922}.list{display:grid;gap:9px}.item{border:1px solid var(--line);border-radius:9px;padding:12px;background:white}.itemhead{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.hidden{display:none!important}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f6f8fb}.tablewrap{overflow-x:auto}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}.tabs button{background:#e5edf6;color:#17395e}.tabs button.active{background:var(--blue);color:white}.small{font-size:12px}.actions{display:flex;gap:5px;flex-wrap:wrap}.memberline{display:grid;grid-template-columns:minmax(120px,2fr) minmax(100px,1fr) minmax(110px,1fr);gap:8px;align-items:center;padding:8px;border-bottom:1px solid var(--line)}@media(max-width:600px){.memberline{grid-template-columns:1fr 1fr}.memberline>*:first-child{grid-column:1/-1}th,td{padding:7px}}
 </style>
 </head>
 <body>
-<header>
-<h1>GORA Savings & Credit Group</h1>
-<p>Chama management</p>
-</header>
-
-<main>
-<section class="card" id="loginCard">
-<h2>Staff sign in</h2>
-<p class="muted">Authorised manager or super administrator access only.</p>
-<form id="loginForm">
-<label>Email</label>
-<input id="email" type="email" required>
-<label>Password</label>
-<input id="password" type="password" required>
-<button id="loginBtn" style="width:100%;margin-top:16px">Sign in</button>
-</form>
-<div id="loginMessage" class="status"></div>
-</section>
-
-<section id="app" class="hidden">
-<div class="card">
-<div class="top">
-<div>
-<h2>Chama workspace</h2>
-<div class="muted" id="staffLabel"></div>
-</div>
-<button class="secondary" id="logoutBtn">Sign out</button>
-</div>
-<label>Organisation</label>
-<select id="orgSelect"></select>
-<div id="pageMessage" class="status"></div>
-</div>
-
-<div class="card">
-<h2>Create a chama group</h2>
-<p class="muted">New groups are submitted as PENDING. Assign at least 5 approved members, then approve the group in the Chama Group Approval centre before it starts operations.</p>
+<header class="top"><h1>GORA · Chama Management</h1><div><a href="index.html">← Back to GORA workspace</a></div></header>
+<main class="wrap">
+<div id="message" class="notice">Connecting to your GORA session…</div>
+<section id="workspace" class="hidden">
+<div class="grid" id="summary"></div>
+<section class="card"><h2>Register a chama group</h2><p class="muted small">New groups start as PENDING. Assign at least five approved members before requesting approval.</p>
 <form id="createForm">
-<div class="grid">
-<div>
-<label>Group code *</label>
-<input id="groupCode" required placeholder="e.g. KLF-001">
-</div>
-<div>
-<label>Group name *</label>
-<input id="groupName" required placeholder="e.g. Kilifi Women Group">
-</div>
-<div>
-<label>Branch</label>
-<select id="branchSelect">
-<option value="">Head office / no branch</option>
-</select>
-</div>
-<div>
-<label>Meeting frequency *</label>
-<select id="frequency">
-<option value="WEEKLY">Weekly</option>
-<option value="BIWEEKLY">Biweekly</option>
-<option value="MONTHLY">Monthly</option>
-</select>
-</div>
-<div>
-<label>Meeting day</label>
-<select id="meetingDay">
-<option value="">Not set</option>
-<option>Monday</option><option>Tuesday</option>
-<option>Wednesday</option><option>Thursday</option>
-<option>Friday</option><option>Saturday</option>
-<option>Sunday</option>
-</select>
-</div>
-<div>
-<label>Weekly savings target (KSh)</label>
-<input id="target" type="number" min="0" value="100" required>
-</div>
-</div>
-<label>Description</label>
-<textarea id="description" rows="2"></textarea>
-<button id="createBtn" style="width:100%;margin-top:16px">Create chama group</button>
-</form>
-</div>
-
-<div class="card">
-<div class="top">
-<h2>Existing chama groups</h2>
-<button class="secondary" id="refreshBtn">Refresh</button>
-</div>
-<div id="groupsList"><div class="empty">Loading groups...</div></div>
-</div>
-
-<div class="card">
-<h2>Assign or transfer a member</h2>
-<p class="muted">Only approved or active members can be assigned. Members can be assigned to PENDING groups while they build the minimum of 5 members. Previous group history is preserved.</p>
-<label>Member</label>
-<select id="memberSelect"><option value="">Select member</option></select>
-<label>Destination chama</label>
-<select id="destinationSelect"><option value="">Select group</option></select>
-<label>Join / transfer date</label>
-<input id="joinDate" type="date">
-<button id="assignBtn" style="width:100%;margin-top:16px">Assign member to chama</button>
-</div>
+<div class="row"><div><label>Organization *</label><select id="org" required></select></div><div><label>Branch</label><select id="branch"><option value="">No branch selected</option></select></div></div>
+<div class="row"><div><label>Group code *</label><input id="code" required maxlength="30" placeholder="e.g. GORA-KLF-001"></div><div><label>Group name *</label><input id="name" required placeholder="Group name"></div></div>
+<div class="row"><div><label>Meeting frequency</label><select id="frequency"><option value="WEEKLY">Weekly</option><option value="BIWEEKLY">Every two weeks</option><option value="MONTHLY">Monthly</option></select></div><div><label>Meeting day</label><select id="day"><option value="">Select day</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></div><div><label>Weekly savings target (KSh)</label><input id="target" type="number" min="0" step="1" value="100"></div></div>
+<div class="row"><div><label>Location / area</label><input id="location" placeholder="Estate, village or town"></div><div><label>Maximum members</label><input id="maximum" type="number" min="5" placeholder="Leave blank for no limit"></div></div>
+<div class="row"><div><label>Meeting time</label><input id="meetingTime" type="time"></div><div><label>Meeting venue</label><input id="venue" placeholder="Meeting venue"></div></div>
+<label>Purpose / description</label><textarea id="description" placeholder="Purpose and group description"></textarea>
+<div class="row"><div><label>Chairperson name</label><input id="chair" placeholder="Full name"></div><div><label>Chairperson phone</label><input id="chairPhone" type="tel"></div></div>
+<div class="row"><div><label>Secretary name</label><input id="secretary"></div><div><label>Secretary phone</label><input id="secretaryPhone" type="tel"></div></div>
+<div class="row"><div><label>Treasurer name</label><input id="treasurer"></div><div><label>Treasurer phone</label><input id="treasurerPhone" type="tel"></div></div>
+<button class="btn" type="submit">Create pending group</button></form></section>
+<section class="card"><div class="itemhead"><h2>Chama groups</h2><button class="btn secondary" id="refresh">Refresh</button></div><div id="groups" class="list"><p class="muted">Loading groups…</p></div></section>
+<section id="detail" class="card hidden"><div class="itemhead"><div><h2 id="detailTitle">Group profile</h2><div id="detailMeta" class="muted small"></div></div><button class="btn secondary" id="closeDetail">Close profile</button></div>
+<div class="tabs"><button class="btn active" data-tab="overview">Overview & members</button><button class="btn" data-tab="assign">Assign / transfer</button><button class="btn" data-tab="meetings">Meetings & attendance</button><button class="btn" data-tab="settings">Group settings</button></div>
+<div id="tab-overview"><div id="profileInfo" class="grid"></div><h3 style="margin-top:16px">Members</h3><div id="memberList" class="tablewrap"></div><div id="groupActions" class="actions" style="margin-top:12px"></div></div>
+<div id="tab-assign" class="hidden"><h3>Assign or transfer a member</h3><p class="muted small">Only approved/active members can be assigned. Previous membership is retained as TRANSFERRED by the database procedure.</p><form id="assignForm"><label>Approved member</label><select id="memberSelect" required></select><button class="btn" type="submit">Assign member to this group</button></form></div>
+<div id="tab-meetings" class="hidden"><h3>Record a meeting</h3><form id="meetingForm"><div class="row"><div><label>Meeting date *</label><input id="meetingDate" type="date" required></div><div><label>Time</label><input id="meetingRecordTime" type="time"></div><div><label>Venue</label><input id="meetingVenue"></div></div><label>Meeting notes</label><textarea id="meetingNotes"></textarea><button class="btn" type="submit">Save meeting</button></form><h3 style="margin-top:18px">Meeting history</h3><div id="meetingList" class="list"></div><div id="attendanceEditor"></div></div>
+<div id="tab-settings" class="hidden"><h3>Update group profile</h3><form id="settingsForm"><div class="row"><div><label>Group name</label><input id="editName" required></div><div><label>Location</label><input id="editLocation"></div></div><div class="row"><div><label>Meeting frequency</label><select id="editFrequency"><option value="WEEKLY">Weekly</option><option value="BIWEEKLY">Every two weeks</option><option value="MONTHLY">Monthly</option></select></div><div><label>Meeting day</label><input id="editDay"></div><div><label>Weekly savings target (KSh)</label><input id="editTarget" type="number" min="0"></div></div><div class="row"><div><label>Meeting time</label><input id="editTime" type="time"></div><div><label>Venue</label><input id="editVenue"></div><div><label>Maximum members</label><input id="editMaximum" type="number" min="5"></div></div><label>Purpose / description</label><textarea id="editPurpose"></textarea><div class="row"><div><label>Chairperson</label><input id="editChair"></div><div><label>Chairperson phone</label><input id="editChairPhone"></div></div><div class="row"><div><label>Secretary</label><input id="editSecretary"></div><div><label>Secretary phone</label><input id="editSecretaryPhone"></div></div><div class="row"><div><label>Treasurer</label><input id="editTreasurer"></div><div><label>Treasurer phone</label><input id="editTreasurerPhone"></div></div><button class="btn" type="submit">Save profile changes</button></form></div>
+</section>
 </section>
 </main>
-<footer>GORA Savings & Credit Group</footer>
-
 <script>
-const URL=localStorage.getItem("gora_url");
-const KEY=localStorage.getItem("gora_key");
-let db=null,user=null,orgIds=[];
-
-const $=id=>document.getElementById(id);
-
-function message(id,text,type="error"){
- const e=$(id);
- e.textContent=text;
- e.className="status "+type;
-}
-function clearMessage(id){
- $(id).textContent="";
- $(id).className="status";
-}
-function busy(btn,on,label){
- btn.disabled=on;
- btn.textContent=on?"Please wait...":label;
-}
-
-async function loadWorkspace(){
- const {data,error}=await db.from("user_roles")
- .select("organization_id,role:roles(role_code)")
- .eq("user_id",user.id)
- .eq("is_active",true);
-
- if(error)throw error;
-
- orgIds=[...new Set((data||[])
- .filter(x=>{
-  const role=Array.isArray(x.role)?x.role[0]:x.role;
-  return role&&["SUPER_ADMIN","MANAGER"].includes(role.role_code);
- })
- .map(x=>x.organization_id))];
-
- if(!orgIds.length)
-  throw new Error("Access denied. Manager or super administrator access is required.");
-
- const {data:orgs,error:orgError}=await db.from("organizations")
- .select("id,name").in("id",orgIds);
-
- if(orgError)throw orgError;
-
- $("orgSelect").replaceChildren();
-
- (orgs||[]).forEach(o=>{
-  const option=document.createElement("option");
-  option.value=o.id;
-  option.textContent=o.name;
-  $("orgSelect").append(option);
- });
-
- await loadReferenceData();
-}
-
-async function loadReferenceData(){
- const org=$("orgSelect").value;
- if(!org||!orgIds.includes(org))return;
-
- const [branches,groups,members]=await Promise.all([
-  db.from("branches").select("id,branch_name")
-   .eq("organization_id",org).eq("status","ACTIVE")
-   .order("branch_name"),
-
-  db.from("chama_groups")
-   .select("id,group_code,group_name,status,meeting_frequency,meeting_day,target_weekly_savings")
-   .eq("organization_id",org)
-   .order("created_at",{ascending:false}),
-
-  db.from("members")
-   .select("id,member_number,full_name,status,chama_group_id")
-   .eq("organization_id",org)
-   .in("status",["APPROVED","ACTIVE"])
-   .order("full_name")
- ]);
-
- if(branches.error)throw branches.error;
- if(groups.error)throw groups.error;
- if(members.error)throw members.error;
-
- $("branchSelect").innerHTML='<option value="">Head office / no branch</option>';
-
- (branches.data||[]).forEach(b=>{
-  const o=document.createElement("option");
-  o.value=b.id;
-  o.textContent=b.branch_name;
-  $("branchSelect").append(o);
- });
-
- $("groupsList").replaceChildren();
- $("destinationSelect").innerHTML='<option value="">Select group</option>';
-
- (groups.data||[]).forEach(g=>{
-  const item=document.createElement("div");
-  item.className="item";
-
-  const title=document.createElement("strong");
-  title.textContent=g.group_code+" — "+g.group_name;
-
-  const tag=document.createElement("span");
-  tag.className="tag"+(g.status==="PENDING"?" pending-tag":"");
-  tag.textContent=g.status;
-
-  const detail=document.createElement("div");
-  detail.className="muted";
-  detail.textContent=(g.meeting_frequency||"WEEKLY")
-   +(g.meeting_day?" · "+g.meeting_day:"")
-   +" · Weekly target KSh "
-   +Number(g.target_weekly_savings||0).toLocaleString();
-
-  item.append(title,document.createTextNode(" "),tag,detail);
-  $("groupsList").append(item);
-
-  // Pending groups must accept members so they can reach the five-member minimum.
-  // Active groups remain available for normal assignments and transfers.
-  if(g.status==="ACTIVE"||g.status==="PENDING"){
-   const o=document.createElement("option");
-   o.value=g.id;
-   o.textContent=g.group_code+" — "+g.group_name+" ("+g.status+")";
-   $("destinationSelect").append(o);
-  }
- });
-
- if(!(groups.data||[]).length)
-  $("groupsList").innerHTML='<div class="empty">No chama groups yet.</div>';
-
- $("memberSelect").innerHTML='<option value="">Select member</option>';
-
- (members.data||[]).forEach(m=>{
-  const o=document.createElement("option");
-  o.value=m.id;
-  o.textContent=(m.member_number?m.member_number+" · ":"")
-   +m.full_name+" ("+m.status+")"
-   +(m.chama_group_id?" · currently assigned":" · unassigned");
-  $("memberSelect").append(o);
- });
-
- if(!(members.data||[]).length)
-  $("memberSelect").innerHTML='<option value="">No approved or active members</option>';
-}
-
-$("loginForm").addEventListener("submit",async e=>{
- e.preventDefault();
- const btn=$("loginBtn");
- busy(btn,true,"Sign in");
-
- try{
-  if(!db)throw new Error("GORA connection settings were not found. Open the main GORA app and configure its connection first.");
-
-  const {data,error}=await db.auth.signInWithPassword({
-   email:$("email").value.trim(),
-   password:$("password").value
-  });
-
-  if(error)throw error;
-
-  user=data.user;
-  $("loginCard").classList.add("hidden");
-  $("app").classList.remove("hidden");
-  $("staffLabel").textContent="Signed in: "+(user.email||"staff");
-
-  await loadWorkspace();
- }catch(err){
-  message("loginMessage",err.message);
- }finally{
-  busy(btn,false,"Sign in");
- }
-});
-
-$("orgSelect").addEventListener("change",()=>{
- loadReferenceData().catch(e=>message("pageMessage",e.message));
-});
-
-$("createForm").addEventListener("submit",async e=>{
- e.preventDefault();
- clearMessage("pageMessage");
-
- const btn=$("createBtn");
- busy(btn,true,"Create chama group");
-
- try{
-  const org=$("orgSelect").value;
-  if(!orgIds.includes(org))throw new Error("Select an authorised organisation.");
-
-  const {data,error}=await db.rpc("create_chama_group",{
-   _organization_id:org,
-   _group_code:$("groupCode").value.trim(),
-   _group_name:$("groupName").value.trim(),
-   _branch_id:$("branchSelect").value||null,
-   _meeting_frequency:$("frequency").value,
-   _meeting_day:$("meetingDay").value||null,
-   _target_weekly_savings:Number($("target").value),
-   _description:$("description").value.trim()||null
-  });
-
-  if(error)throw error;
-
-  $("createForm").reset();
-  $("target").value="100";
-
-  message("pageMessage","Chama group created successfully as PENDING. Assign at least 5 approved members, then approve it in the Chama Group Approval centre. Reference: "+data,"success");
-  await loadReferenceData();
-
- }catch(err){
-  message("pageMessage","Could not create group: "+err.message);
- }finally{
-  busy(btn,false,"Create chama group");
- }
-});
-
-$("assignBtn").addEventListener("click",async()=>{
- clearMessage("pageMessage");
- const btn=$("assignBtn");
- busy(btn,true,"Assign member to chama");
-
- try{
-  const member=$("memberSelect").value;
-  const group=$("destinationSelect").value;
-
-  if(!member||!group)
-   throw new Error("Select both a member and destination chama.");
-
-  const date=$("joinDate").value||new Date().toISOString().slice(0,10);
-
-  const {data,error}=await db.rpc("assign_member_to_chama",{
-   _member_id:member,
-   _group_id:group,
-   _joined_at:date
-  });
-
-  if(error)throw error;
-
-  message("pageMessage","Member assigned successfully. Membership record: "+data,"success");
-  await loadReferenceData();
-
- }catch(err){
-  message("pageMessage","Assignment failed: "+err.message);
- }finally{
-  busy(btn,false,"Assign member to chama");
- }
-});
-
-$("refreshBtn").addEventListener("click",async()=>{
- clearMessage("pageMessage");
- try{
-  await loadReferenceData();
-  message("pageMessage","Chama information refreshed.","success");
- }catch(e){
-  message("pageMessage",e.message);
- }
-});
-
-$("logoutBtn").addEventListener("click",async()=>{
- if(db)await db.auth.signOut();
- user=null;
- $("app").classList.add("hidden");
- $("loginCard").classList.remove("hidden");
-});
-
-async function init(){
- if(!URL||!KEY){
-  message("loginMessage","GORA connection settings were not found. Open the existing GORA app and configure its connection first.");
-  return;
- }
-
- db=window.supabase.createClient(URL,KEY);
-
- const {data,error}=await db.auth.getSession();
- if(error){
-  message("loginMessage",error.message);
-  return;
- }
-
- if(data.session){
-  user=data.session.user;
-  $("loginCard").classList.add("hidden");
-  $("app").classList.remove("hidden");
-  $("staffLabel").textContent="Signed in: "+(user.email||"staff");
-
-  try{
-   await loadWorkspace();
-  }catch(e){
-   message("pageMessage",e.message);
-  }
- }
-}
-
-init();
+(()=>{
+const $=id=>document.getElementById(id);let db=null,user=null,orgs=[],branches=[],groups=[],members=[],selected=null,meetings=[];
+const say=(msg,type='')=>{const el=$('message');el.textContent=msg;el.className='notice '+(type==='error'?'error':type==='success'?'success':'');el.classList.remove('hidden')};
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'KSh '+Number(n||0).toLocaleString('en-KE',{maximumFractionDigits:2});
+const val=id=>$(id).value.trim();const rpc=async(name,args)=>{const {data,error}=await db.rpc(name,args);if(error)throw error;return data};
+async function init(){try{const url=localStorage.getItem('gora_url'),key=localStorage.getItem('gora_key');if(!url||!key)throw Error('GORA connection settings were not found. Return to the main GORA app and sign in there.');db=window.supabase.createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});const {data:{session},error}=await db.auth.getSession();if(error)throw error;if(!session){say('You are not signed in. Please return to the main GORA workspace, sign in once, then open Chama Management.','error');return;}user=session.user;const {data:profile,error:pe}=await db.from('profiles').select('id,full_name,role,active').eq('id',user.id).maybeSingle();if(pe)throw pe;if(!profile||profile.active!==true)throw Error('Your GORA user profile is inactive or unavailable. Contact an administrator.');const {data:roles,error:re}=await db.from('user_roles').select('organization_id,roles!inner(role_code)').eq('user_id',user.id).eq('is_active',true);if(re)throw re;const allowed=(roles||[]).filter(x=>['SUPER_ADMIN','MANAGER'].includes(x.roles?.role_code));if(!allowed.length)throw Error('Chama Management requires an active SUPER_ADMIN or MANAGER role.');const ids=[...new Set(allowed.map(x=>x.organization_id))];const {data:o,error:oe}=await db.from('organizations').select('id,name').in('id',ids).order('name');if(oe)throw oe;orgs=o||[];if(!orgs.length)throw Error('No organization is assigned to your account.');$('org').innerHTML=orgs.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');await loadBranches();$('workspace').classList.remove('hidden');say('Signed in as '+(profile.full_name||user.email)+'. Chama Management is ready.','success');await refreshAll();}catch(e){say(e.message||String(e),'error')}}
+async function loadBranches(){const org=$('org').value||orgs[0].id;const {data,error}=await db.from('branches').select('id,branch_name,status').eq('organization_id',org).eq('status','ACTIVE').order('branch_name');if(error)throw error;branches=data||[];$('branch').innerHTML='<option value="">No branch selected</option>'+branches.map(b=>`<option value="${b.id}">${esc(b.branch_name)}</option>`).join('')}
+async function refreshAll(){await loadBranches();const org=$('org').value;const {data,error}=await db.from('chama_groups').select('*').eq('organization_id',org).order('created_at',{ascending:false});if(error)throw error;groups=data||[];const {data:m,error:me}=await db.from('members').select('id,member_number,full_name,phone,status,branch_id,chama_group_id').eq('organization_id',org).in('status',['APPROVED','ACTIVE']).order('full_name');if(me)throw me;members=m||[];renderGroups();renderSummary()}
+function renderSummary(){const pending=groups.filter(g=>g.status==='PENDING').length,active=groups.filter(g=>g.status==='ACTIVE').length; $('summary').innerHTML=[['Total groups',groups.length],['Active groups',active],['Pending approval',pending],['Approved members',members.length]].map(x=>`<div class="card"><div class="muted">${x[0]}</div><div class="stats">${x[1]}</div></div>`).join('')}
+async function memberCounts(){const {data,error}=await db.from('chama_memberships').select('group_id,member_id,status').eq('status','ACTIVE').eq('organization_id',$('org').value);if(error)throw error;return data||[]}
+async function renderGroups(){const host=$('groups');if(!groups.length){host.innerHTML='<p class="muted">No chama groups found for this organization yet.</p>';return}const ms=await memberCounts();host.innerHTML=groups.map(g=>{const count=ms.filter(x=>x.group_id===g.id).length;return `<div class="item"><div class="itemhead"><div><strong>${esc(g.group_name)}</strong><div class="muted small">${esc(g.group_code)} · ${esc(g.location||'Location not set')}</div></div><span class="pill ${esc(g.status)}">${esc(g.status)}</span></div><p class="small muted">${count} active member(s) · ${esc(g.meeting_frequency||'WEEKLY')} · ${esc(g.meeting_day||'Day not set')}</p><button class="btn" data-open="${g.id}">Open group profile</button></div>`}).join('');host.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>openGroup(b.dataset.open)))}
+$('createForm').addEventListener('submit',async e=>{e.preventDefault();try{const org=$('org').value;const id=await rpc('create_chama_group',{_organization_id:org,_group_code:val('code'),_group_name:val('name'),_branch_id:val('branch')||null,_meeting_frequency:val('frequency'),_meeting_day:val('day')||null,_target_weekly_savings:Number(val('target')||0),_description:val('description')||null});const extra={location:val('location')||null,maximum_members:val('maximum')?Number(val('maximum')):null,meeting_time:val('meetingTime')||null,meeting_venue:val('venue')||null,purpose:val('description')||null,chairperson_name:val('chair')||null,chairperson_phone:val('chairPhone')||null,secretary_name:val('secretary')||null,secretary_phone:val('secretaryPhone')||null,treasurer_name:val('treasurer')||null,treasurer_phone:val('treasurerPhone')||null};const {error}=await db.from('chama_groups').update(extra).eq('id',id).eq('organization_id',org);if(error)throw error;$('createForm').reset();$('target').value='100';say('Group created and saved as PENDING. Assign approved members before approval.','success');await refreshAll();await openGroup(id)}catch(err){say(err.message||String(err),'error')}});
+async function openGroup(id){try{selected=groups.find(g=>g.id===id);if(!selected){const {data,error}=await db.from('chama_groups').select('*').eq('id',id).single();if(error)throw error;selected=data} $('detail').classList.remove('hidden');$('detailTitle').textContent=selected.group_name;$('detailMeta').textContent=selected.group_code+' · '+selected.status+' · Registered '+selected.registered_on;$('editName').value=selected.group_name||'';$('editLocation').value=selected.location||'';$('editFrequency').value=selected.meeting_frequency||'WEEKLY';$('editDay').value=selected.meeting_day||'';$('editTarget').value=selected.target_weekly_savings??100;$('editTime').value=selected.meeting_time||'';$('editVenue').value=selected.meeting_venue||'';$('editMaximum').value=selected.maximum_members||'';$('editPurpose').value=selected.purpose||selected.description||'';$('editChair').value=selected.chairperson_name||'';$('editChairPhone').value=selected.chairperson_phone||'';$('editSecretary').value=selected.secretary_name||'';$('editSecretaryPhone').value=selected.secretary_phone||'';$('editTreasurer').value=selected.treasurer_name||'';$('editTreasurerPhone').value=selected.treasurer_phone||'';await renderGroupMembers();await renderGroupActions();await loadMeetingHistory();$('detail').scrollIntoView({behavior:'smooth'});}catch(e){say(e.message||String(e),'error')}}
+async function renderGroupMembers(){const {data,error}=await db.from('chama_memberships').select('id,member_id,joined_at,status,left_at,members!inner(id,member_number,full_name,phone,status)').eq('group_id',selected.id).order('joined_at');if(error)throw error;const rows=data||[];$('memberList').innerHTML=rows.length?`<table><thead><tr><th>Member</th><th>Phone</th><th>Joined</th><th>Membership</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.members.full_name)}<div class="muted small">${esc(x.members.member_number||'')}</div></td><td>${esc(x.members.phone||'')}</td><td>${esc(x.joined_at||'')}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted">No members assigned yet.</p>';const active=rows.filter(x=>x.status==='ACTIVE').length;$('profileInfo').innerHTML=[['Active members',active],['Weekly savings target',money(selected.target_weekly_savings)],['Meeting schedule',(selected.meeting_frequency||'WEEKLY')+' '+(selected.meeting_day||'')],['Location',selected.location||'Not set'],['Meeting venue',selected.meeting_venue||'Not set'],['Maximum members',selected.maximum_members||'No limit']].map(x=>`<div class="item"><div class="muted small">${esc(x[0])}</div><strong>${esc(x[1])}</strong></div>`).join('');const choices=members.filter(m=>m.status==='APPROVED'||m.status==='ACTIVE');$('memberSelect').innerHTML='<option value="">Select member</option>'+choices.map(m=>`<option value="${m.id}">${esc(m.full_name)} · ${esc(m.member_number||m.phone||'')}</option>`).join('')}
+async function renderGroupActions(){const count=(await memberCounts()).filter(x=>x.group_id===selected.id).length;let html='';if(selected.status==='PENDING'){html+=`<button class="btn" id="approveGroup" ${count<5?'disabled':''}>Approve group (${count}/5 members)</button><button class="btn danger" id="rejectGroup">Reject group</button>`}if(selected.status==='ACTIVE')html+='<button class="btn secondary" id="pauseGroup">Pause group</button>';if(selected.status==='PAUSED')html+='<button class="btn" id="activateGroup">Reactivate group</button>';if(!['CLOSED','REJECTED'].includes(selected.status))html+='<button class="btn danger" id="closeGroup">Close group</button>';if(selected.approved_at)html+=`<span class="muted small">Approved on ${esc(selected.approved_at)}</span>`;if(selected.rejection_reason)html+=`<span class="muted small">Reason: ${esc(selected.rejection_reason)}</span>`;$('groupActions').innerHTML=html;const bind=(id,fn)=>{const el=$(id);if(el)el.addEventListener('click',fn)};bind('approveGroup',async()=>{try{await rpc('approve_chama_group',{_group_id:selected.id});say('Group approved.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}});bind('rejectGroup',async()=>{const reason=prompt('Enter reason for rejecting this group:');if(!reason?.trim())return;try{await rpc('reject_chama_group',{_group_id:selected.id,_reason:reason.trim()});say('Group rejected.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}});bind('pauseGroup',()=>setStatus('PAUSED'));bind('activateGroup',()=>setStatus('ACTIVE'));bind('closeGroup',()=>{if(confirm('Close this group? This changes its status to CLOSED.'))setStatus('CLOSED')})}
+async function setStatus(status){try{const {error}=await db.from('chama_groups').update({status}).eq('id',selected.id).eq('organization_id',$('org').value);if(error)throw error;say('Group status updated to '+status+'.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}}
+$('assignForm').addEventListener('submit',async e=>{e.preventDefault();try{const memberId=val('memberSelect');if(!memberId)throw Error('Choose a member first.');const current=members.find(m=>m.id===memberId);if(current?.chama_group_id===selected.id)throw Error('This member is already linked to this group.');const active=(await memberCounts()).filter(x=>x.group_id===selected.id).length;if(selected.maximum_members&&active>=selected.maximum_members)throw Error('This group has reached its maximum member limit.');await rpc('assign_member_to_chama',{_member_id:memberId,_group_id:selected.id,_joined_at:new Date().toISOString().slice(0,10)});say('Member assigned. Any previous active chama membership is retained as TRANSFERRED.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}});
+$('settingsForm').addEventListener('submit',async e=>{e.preventDefault();try{const patch={group_name:val('editName'),location:val('editLocation')||null,meeting_frequency:val('editFrequency'),meeting_day:val('editDay')||null,target_weekly_savings:Number(val('editTarget')||0),meeting_time:val('editTime')||null,meeting_venue:val('editVenue')||null,maximum_members:val('editMaximum')?Number(val('editMaximum')):null,purpose:val('editPurpose')||null,description:val('editPurpose')||null,chairperson_name:val('editChair')||null,chairperson_phone:val('editChairPhone')||null,secretary_name:val('editSecretary')||null,secretary_phone:val('editSecretaryPhone')||null,treasurer_name:val('editTreasurer')||null,treasurer_phone:val('editTreasurerPhone')||null};const {error}=await db.from('chama_groups').update(patch).eq('id',selected.id).eq('organization_id',$('org').value);if(error)throw error;say('Group profile updated.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}});
+$('meetingForm').addEventListener('submit',async e=>{e.preventDefault();try{const payload={organization_id:$('org').value,group_id:selected.id,meeting_date:val('meetingDate'),meeting_time:val('meetingRecordTime')||null,venue:val('meetingVenue')||null,notes:val('meetingNotes')||null,recorded_by:user.id};const {data,error}=await db.from('chama_meetings').insert(payload).select('id').single();if(error)throw error;const active=(await db.from('chama_memberships').select('member_id').eq('group_id',selected.id).eq('status','ACTIVE'));if(active.error)throw active.error;if(active.data.length){const rows=active.data.map(x=>({organization_id:$('org').value,meeting_id:data.id,group_id:selected.id,member_id:x.member_id,attendance_status:'ABSENT',recorded_by:user.id}));const {error:ae}=await db.from('chama_meeting_attendance').insert(rows);if(ae)throw ae;} $('meetingForm').reset();say('Meeting saved. Attendance has been opened with members marked ABSENT by default; update each status.','success');await loadMeetingHistory();await loadAttendance(data.id)}catch(e){say(e.message||String(e),'error')}});
+async function loadMeetingHistory(){const {data,error}=await db.from('chama_meetings').select('id,meeting_date,meeting_time,venue,notes').eq('group_id',selected.id).order('meeting_date',{ascending:false});if(error)throw error;meetings=data||[];$('meetingList').innerHTML=meetings.length?meetings.map(m=>`<div class="item"><div class="itemhead"><strong>${esc(m.meeting_date)}</strong><span class="muted small">${esc(m.meeting_time||'')} ${esc(m.venue||'')}</span></div><p class="small">${esc(m.notes||'No notes')}</p><button class="btn secondary" data-att="${m.id}">View / edit attendance</button></div>`).join(''):'<p class="muted">No meetings recorded yet.</p>';$('meetingList').querySelectorAll('[data-att]').forEach(b=>b.addEventListener('click',()=>loadAttendance(b.dataset.att)))}
+async function loadAttendance(meetingId){try{const {data,error}=await db.from('chama_meeting_attendance').select('id,member_id,attendance_status,members!inner(full_name,member_number)').eq('meeting_id',meetingId).order('created_at');if(error)throw error;const rows=data||[];$('attendanceEditor').innerHTML='<h3 style="margin-top:18px">Attendance register</h3>'+ (rows.length?rows.map(r=>`<div class="memberline"><strong>${esc(r.members.full_name)} <span class="muted small">${esc(r.members.member_number||'')}</span></strong><select data-attendance="${r.id}"><option value="PRESENT" ${r.attendance_status==='PRESENT'?'selected':''}>Present</option><option value="ABSENT" ${r.attendance_status==='ABSENT'?'selected':''}>Absent</option><option value="EXCUSED" ${r.attendance_status==='EXCUSED'?'selected':''}>Excused</option></select><button class="btn secondary" data-save-att="${r.id}">Save</button></div>`).join(''):'<p class="muted">No attendance rows found for this meeting.</p>');$('attendanceEditor').querySelectorAll('[data-save-att]').forEach(b=>b.addEventListener('click',async()=>{const id=b.dataset.saveAtt,status=$('attendanceEditor').querySelector(`[data-attendance="${id}"]`).value;try{const {error}=await db.from('chama_meeting_attendance').update({attendance_status:status}).eq('id',id);if(error)throw error;say('Attendance updated.','success')}catch(e){say(e.message||String(e),'error')}}));}catch(e){say(e.message||String(e),'error')}}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));['overview','assign','meetings','settings'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==b.dataset.tab))}));$('closeDetail').addEventListener('click',()=>$('detail').classList.add('hidden'));$('refresh').addEventListener('click',()=>refreshAll().catch(e=>say(e.message||String(e),'error')));$('org').addEventListener('change',()=>refreshAll().catch(e=>say(e.message||String(e),'error')));init();
+})();
 </script>
-</body>
-</html>
+</body></html>
