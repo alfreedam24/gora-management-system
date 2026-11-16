@@ -18,8 +18,14 @@
 <form id="createForm">
 <div class="row"><div><label>Organization *</label><select id="org" required></select></div><div><label>Branch</label><select id="branch"><option value="">No branch selected</option></select></div></div>
 <div class="row"><div><label>Group code *</label><input id="code" required maxlength="30" placeholder="e.g. GORA-KLF-001"></div><div><label>Group name *</label><input id="name" required placeholder="Group name"></div></div>
+  <div class="row">
+  <div>
+    <label>Chama creation date *</label>
+    <input id="registeredOn" type="date" required>
+  </div>
+</div>
 <div class="row"><div><label>Meeting frequency</label><select id="frequency"><option value="WEEKLY">Weekly</option><option value="BIWEEKLY">Every two weeks</option><option value="MONTHLY">Monthly</option></select></div><div><label>Meeting day</label><select id="day"><option value="">Select day</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></div><div><label>Weekly savings target (KSh)</label><input id="target" type="number" min="0" step="1" value="100"></div></div>
-<div class="row"><div><label>Location / area</label><input id="location" placeholder="Estate, village or town"></div><div><label>Maximum members</label><input id="maximum" type="number" min="5" placeholder="Leave blank for no limit"></div></div>
+< class="row"><div><label>Location / area</label><input id="location" placeholder="Estate, village or town"></div><div><label>Maximum members</label><input id="maximum" type="number" min="5" placeholder="Leave blank for no limit"></div></div>
 <div class="row"><div><label>Meeting time</label><input id="meetingTime" type="time"></div><div><label>Meeting venue</label><input id="venue" placeholder="Meeting venue"></div></div>
 <label>Purpose / description</label><textarea id="description" placeholder="Purpose and group description"></textarea>
 <div class="row"><div><label>Chairperson name</label><input id="chair" placeholder="Full name"></div><div><label>Chairperson phone</label><input id="chairPhone" type="tel"></div></div>
