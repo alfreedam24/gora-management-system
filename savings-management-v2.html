@@ -53,7 +53,14 @@ footer{text-align:center;color:#8999a8;padding:25px}
     <label>Password</label>
     <input id="password" type="password" required autocomplete="current-password">
     <button id="loginBtn">Sign in</button>
-  </form>
+  </form>  <details open style="margin-top:20px">
+    <summary>Supabase connection settings</summary>
+    <label>Supabase project URL</label>
+    <input id="supabaseUrl" type="url" placeholder="https://your-project.supabase.co">
+    <label>Supabase anon / publishable key</label>
+    <textarea id="supabaseKey" rows="3" placeholder="sb_publishable_..."></textarea>
+    <button type="button" id="saveConnection" class="secondary">Save connection settings</button>
+  </details>
 </section>
 
 <section id="workspace" class="hidden">
@@ -156,12 +163,34 @@ footer{text-align:center;color:#8999a8;padding:25px}
 <footer>GORA Savings & Credit Group • Internal management system</footer>
 
 <script>
-const URL=localStorage.getItem("gora_url");
-const KEY=localStorage.getItem("gora_key");
+let URL=localStorage.getItem("gora_url")||"";
+let KEY=localStorage.getItem("gora_key")||"";
 const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat("en-KE",{style:"currency",currency:"KES"}).format(Number(n||0));
 let db,user,orgId,roles=[],accounts=[],members=[],transactions=[],balances={};
+$("supabaseUrl").value=URL;
+$("supabaseKey").value=KEY;
 
+$("saveConnection").addEventListener("click",()=>{
+  const nextUrl=$("supabaseUrl").value.trim();
+  const nextKey=$("supabaseKey").value.trim();
+
+  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(nextUrl)){
+    say("Enter a valid HTTPS Supabase project URL.","error");
+    return;
+  }
+
+  if(!nextKey.startsWith("sb_publishable_")){
+    say("Enter your Supabase publishable key.","error");
+    return;
+  }
+
+  URL=nextUrl;
+  KEY=nextKey;
+  localStorage.setItem("gora_url",URL);
+  localStorage.setItem("gora_key",KEY);
+  say("Connection settings saved on this page. You can now sign in.");
+});
 function say(message,kind="success"){
   $("message").textContent=message;
   $("message").className="message "+kind;
@@ -177,7 +206,9 @@ async function check(result){
 }
 
 async function start(){
-  if(!URL||!KEY)throw new Error("Connection settings missing. Open the main GORA app and save the Supabase URL and public key first.");
+  URL=localStorage.getItem("gora_url")||"";
+KEY=localStorage.getItem("gora_key")||"";
+if(!URL||!KEY)return;
   db=window.supabase.createClient(URL,KEY);
   const {data,error}=await db.auth.getSession();
   if(error)throw error;
@@ -293,7 +324,9 @@ $("loginForm").addEventListener("submit",async e=>{
   e.preventDefault();
   $("loginBtn").disabled=true;
   try{
-    if(!URL||!KEY)throw new Error("Open the main GORA app and save its Supabase connection settings first.");
+    URL=localStorage.getItem("gora_url")||"";
+KEY=localStorage.getItem("gora_key")||"";
+if(!URL||!KEY)throw new Error("Enter and save the Supabase connection settings on this page first.");
     db=window.supabase.createClient(URL,KEY);
     const {data,error}=await db.auth.signInWithPassword({
       email:$("email").value.trim(),password:$("password").value
