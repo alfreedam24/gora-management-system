@@ -1,6 +1,19 @@
-
-/* GORA 2.0 dashboard additions */
+/* GORA 2.0 dashboard visual refinement */
 .gora-filters{display:flex;align-items:end;gap:10px}.gora-filters label{margin:0;font-size:12px}.gora-filters select{display:block;margin-top:5px;padding:9px;border:1px solid var(--line);border-radius:9px;background:white;color:var(--ink)}
-.gora-legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin-bottom:12px}.gora-legend i,.gora-legend b{display:inline-block;width:9px;height:9px;border-radius:3px;background:#0876a8;margin-right:5px}.gora-legend b{background:#0e9f9a}
-.gora-chart-row{display:grid;grid-template-columns:42px 1fr 82px;gap:9px;align-items:center;margin:12px 0;font-size:11px;color:var(--muted)}.gora-bars{height:12px;background:#edf3f7;border-radius:8px;overflow:hidden;display:flex;gap:2px}.gora-bars i,.gora-bars b{display:block;height:100%;background:#0876a8;border-radius:8px}.gora-bars b{background:#0e9f9a}.gora-chart-row small{text-align:right;white-space:nowrap}
-@media(max-width:520px){.page-heading{align-items:flex-start;flex-direction:column}.gora-filters{width:100%}.gora-filters label{flex:1}.gora-filters select{width:100%}}
+.gora-legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin-bottom:14px}.gora-legend i,.gora-legend b{display:inline-block;width:10px;height:10px;border-radius:3px;background:#0876a8;margin-right:5px}.gora-legend b{background:#0e9f9a}
+.gora-chart-row{display:grid;grid-template-columns:42px minmax(70px,1fr) minmax(72px,auto);gap:10px;align-items:center;margin:15px 0;font-size:12px;color:var(--muted)}
+.gora-bars{height:17px;background:#e4edf3;border:1px solid #d5e1e9;border-radius:10px;overflow:hidden;display:flex;gap:2px;box-shadow:inset 0 1px 2px rgba(20,45,65,.08)}
+.gora-bars i,.gora-bars b{display:block;min-width:0;height:100%;background:linear-gradient(90deg,#075985,#1596c5);border-radius:9px;transition:width .25s ease}
+.gora-bars b{background:linear-gradient(90deg,#0f766e,#20b6a5)}
+.gora-bars.is-zero{background:repeating-linear-gradient(135deg,#edf3f7,#edf3f7 5px,#e5edf2 5px,#e5edf2 10px)}
+.gora-chart-row small{text-align:right;white-space:nowrap;font-weight:700;color:#334e62;font-variant-numeric:tabular-nums}
+.loan-status-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.loan-status-card{display:flex;align-items:flex-start;gap:12px;padding:15px;border:1px solid #dce7ee;border-radius:12px;background:linear-gradient(145deg,#fff,#f4f8fb);min-width:0}
+.loan-status-icon{display:grid;place-items:center;flex:0 0 34px;height:34px;border-radius:10px;background:#e1f0f7;color:#075985;font-size:21px;font-weight:800}
+.loan-status-card strong,.loan-status-card b,.loan-status-card small{display:block}
+.loan-status-card strong{font-size:13px;color:#243b53;margin-bottom:6px}
+.loan-status-card b{font-size:14px;color:#647b8c;margin-bottom:4px}
+.loan-status-card small,.chart-note{font-size:11px;line-height:1.5;color:#6b7f8d}
+.chart-note{margin:12px 0 0}
+.stat.muted{border-left:3px solid #8ba5b5;background:#f4f7f9}
+@media(max-width:520px){.page-heading{align-items:flex-start;flex-direction:column}.gora-filters{width:100%}.gora-filters label{flex:1}.gora-filters select{width:100%}.loan-status-grid{grid-template-columns:1fr}.gora-chart-row{grid-template-columns:36px minmax(45px,1fr) minmax(64px,auto);gap:7px}}
