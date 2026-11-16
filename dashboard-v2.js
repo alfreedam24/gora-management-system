@@ -9,7 +9,7 @@
     const max = Math.max(1, ...items.map(x => Number(x[key] || 0)));
     return items.map(x => {
       const value = Number(x[key] || 0);
-      return `<div class="gora-chart-row"><span>${esc(x.month)}</span><div class="gora-bars"><i style="width:${value/max*100}%" title="${esc(formatter(value))}"></i></div><small>${esc(formatter(value))}</small></div>`;
+      return `<div class="gora-chart-row"><span>${esc(x.month)}</span><div class="gora-bars ${value===0?'is-zero':''}"><i style="width:${value===0?0:Math.max(4,value/max*100)}%" title="${esc(formatter(value))}"></i></div><small>${esc(formatter(value))}</small></div>`;
     }).join('');
   };
   async function runDashboard(host, branchId = '') {
@@ -75,7 +75,7 @@
       const memberTrend=countTrend(M,'registration_date');
       const applicationTrend=countTrend(L,'applied_at');
       const max=Math.max(1,...trend.flatMap(x=>[x.deposits,x.withdrawals]));
-      const bars=trend.map(x=>`<div class="gora-chart-row"><span>${x.month}</span><div class="gora-bars"><i title="Deposits ${money(x.deposits)}" style="width:${x.deposits/max*100}%"></i><b title="Withdrawals ${money(x.withdrawals)}" style="width:${x.withdrawals/max*100}%"></b></div><small>${money(x.deposits)}</small></div>`).join('');
+      const bars=trend.map(x=>`<div class="gora-chart-row"><span>${x.month}</span><div class="gora-bars ${x.deposits===0&&x.withdrawals===0?'is-zero':''}"><i title="Deposits ${money(x.deposits)}" style="width:${x.deposits===0?0:Math.max(4,x.deposits/max*100)}%"></i><b title="Withdrawals ${money(x.withdrawals)}" style="width:${x.withdrawals===0?0:Math.max(4,x.withdrawals/max*100)}%"></b></div><small>${money(x.deposits)}</small></div>`).join('');
       const branchOptions=B.map(x=>`<option value="${x.id}">${esc(x.branch_name)}</option>`).join('');
       const table=(headers,rows)=>`<div class="tablebox"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.join(''):`<tr><td colspan="${headers.length}" class="empty">No records yet.</td></tr>`}</tbody></table></div>`;
       host.innerHTML=`
@@ -89,6 +89,8 @@
         ${stat('Posted withdrawals',money(withdrawals),'All-time posted savings withdrawals','warn')}
         ${stat('Today’s deposits',money(todayDeposits),'Approved and posted today','good')}
         ${stat('Today’s withdrawals',money(todayWithdrawals),'Approved and posted today','warn')}
+        ${stat('Loan disbursements','—','Not yet available · loan ledger pending','muted')}
+        ${stat('Loans in arrears','—','Not yet available · instalment ledger pending','muted')}
       </div>
       <div class="notice">Member savings are liabilities, not GORA lending capital. These savings figures are posted transaction totals, not the current member savings liability. Loan disbursements, outstanding principal, repayments, arrears, profit, available lending capital and cash/bank/M-Pesa balances are not displayed because the required verified loan and accounting ledgers are not yet present.</div>
       <div class="grid-two">
@@ -97,7 +99,7 @@
       </div>
       <div class="grid-two">
         ${panel('Loan application activity — applications per month',miniBars(applicationTrend,'count'))}
-        ${panel('Loan disbursement and arrears trends',`<div class="notice">Not yet available: the verified loan disbursement, repayment allocation and instalment ledger tables are not configured in this database. These graphs will appear after the loan ledger module is completed. Loan applications are not counted as disbursements.</div>`)}
+        ${panel('Loan disbursement and arrears trends',`<div class="loan-status-grid"><div class="loan-status-card"><span class="loan-status-icon">↗</span><div><strong>Loan disbursements</strong><b>Not yet available</b><small>Waiting for the verified disbursement ledger</small></div></div><div class="loan-status-card"><span class="loan-status-icon">!</span><div><strong>Loans in arrears</strong><b>Not yet available</b><small>Waiting for repayment schedules and instalment balances</small></div></div></div><p class="chart-note">Applications are not counted as disbursements. These figures will become live when the loan ledger module is completed.</p>`)}
       </div>
       <div class="grid-two">
         ${panel('Savings activity — last six months',`<div class="gora-legend"><span><i></i> Deposits</span><span><b></b> Withdrawals</span></div>${bars||'<p>No posted transactions yet.</p>'}`)}
