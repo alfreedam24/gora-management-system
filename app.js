@@ -2,7 +2,48 @@ const $=id=>document.getElementById(id);let db=null,profile=null;
 const cash=n=>new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES',maximumFractionDigits:0}).format(Number(n||0));
 function connect(){const u=localStorage.getItem('gora_url'),k=localStorage.getItem('gora_key');if(!u||!k||!window.supabase)return false;db=window.supabase.createClient(u,k);return true}
 $('save').onclick=()=>{localStorage.setItem('gora_url',$('url').value.trim());localStorage.setItem('gora_key',$('key').value.trim());$('msg').textContent=connect()?'Connection settings saved on this device.':'Enter both settings.'};
-$('signin').onclick=async()=>{if(!connect()){$('msg').textContent='Save the Supabase project URL and public key first.';return}const {data,error}=await db.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error){$('msg').textContent=error.message;return}const p=await db.from('profiles').select('full_name,role,active').eq('id',data.user.id).single();if(p.error||!p.data?.active){$('msg').textContent='Your GORA staff profile is not active. Ask the administrator.';await db.auth.signOut();return}profile=p.data;$('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=profile.full_name||data.user.email;$('topWho').textContent=profile.full_name||data.user.email;$('role').textContent=profile.role||'Staff';await load('Dashboard')};
+
+async function openWorkspace(user){
+  const p = await db.from('profiles')
+    .select('full_name,role,active')
+    .eq('id', user.id)
+    .single();
+
+  if(p.error || !p.data?.active){
+    $('msg').textContent = 'Your GORA staff profile is not active. Ask the administrator.';
+    await db.auth.signOut();
+    return;
+  }
+
+  profile = p.data;
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('who').textContent = profile.full_name || user.email;
+  $('topWho').textContent = profile.full_name || user.email;
+  $('role').textContent = profile.role || 'Staff';
+
+  await load('Dashboard');
+}
+
+$('signin').onclick = async () => {
+  if(!connect()){
+    $('msg').textContent = 'Save your Supabase project URL and public key first.';
+    return;
+  }
+
+  const {data,error} = await db.auth.signInWithPassword({
+    email: $('email').value.trim(),
+    password: $('password').value
+  });
+
+  if(error){
+    $('msg').textContent = error.message;
+    return;
+  }
+
+  await openWorkspace(data.user);
+};
+
 $('logout').onclick=async()=>{await db.auth.signOut();location.reload()};
 $('menuToggle').onclick=()=>$('sidebar').classList.toggle('open');
 $('nav').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(!b)return;const page=b.dataset.page;if(page==='Members'){location.href='members-v2.html';return}if(page==='Approvals'){location.href='member-approvals-v2.html';return}if(page==='Chamas'){location.href='chama-management-v2.html';return}document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x===b));$('sidebar').classList.remove('open');load(page)});
