@@ -4,98 +4,209 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GORA | Savings Management</title>
+<title>GORA | Savings & Contributions</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{--navy:#102b46;--teal:#0787b3;--bg:#eef3f8;--line:#dce5ed;--muted:#718096}
+:root{
+  --navy:#153f70;
+  --blue:#1769aa;
+  --bg:#f1f5fa;
+  --line:#dce5ed;
+  --muted:#718096;
+  --green:#e4f7ed;
+  --red:#fde8e8;
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);font:15px Arial,sans-serif;color:#243447}
-header{background:var(--navy);color:white;padding:18px}
-header h2{margin:0 0 5px}
-header small{color:#c9d8e7}
-main{max-width:1050px;margin:22px auto;padding:0 14px}
-.card{background:white;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 3px 12px #102b4610}
+body{
+  margin:0;
+  background:var(--bg);
+  color:#243447;
+  font:15px Arial,sans-serif;
+}
+header{
+  background:var(--navy);
+  color:white;
+  padding:18px;
+}
+header h2{margin:0 0 8px}
+header a{color:white}
+main{
+  max-width:1100px;
+  margin:22px auto;
+  padding:0 14px;
+}
+.card{
+  background:white;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:16px;
+  box-shadow:0 3px 12px #102b4610;
+}
 h3{margin:0 0 14px;color:var(--navy)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
-label{display:block;font-weight:600;font-size:13px;margin-bottom:6px}
-input,select,textarea{width:100%;padding:12px;border:1px solid #cbd5e0;border-radius:8px;background:white;font-size:15px;margin-bottom:12px}
-button{border:0;border-radius:8px;padding:12px 16px;background:var(--teal);color:white;font-weight:700;cursor:pointer}
-button.secondary{background:#e5edf5;color:var(--navy)}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:12px;
+}
+.stat{
+  background:#f2f7fb;
+  padding:15px;
+  border-radius:10px;
+}
+.stat strong{
+  display:block;
+  font-size:22px;
+  color:var(--navy);
+  margin-top:7px;
+}
+label{
+  display:block;
+  font-weight:600;
+  font-size:13px;
+  margin:10px 0 6px;
+}
+input,select,textarea{
+  width:100%;
+  padding:12px;
+  border:1px solid #cbd5e0;
+  border-radius:8px;
+  background:white;
+  font-size:15px;
+}
+button{
+  border:0;
+  border-radius:8px;
+  padding:12px 16px;
+  background:var(--blue);
+  color:white;
+  font-weight:700;
+  cursor:pointer;
+  margin-top:12px;
+}
 button:disabled{opacity:.5}
-.stat{background:#f2f7fb;padding:14px;border-radius:10px}
-.stat strong{display:block;font-size:22px;color:var(--navy);margin-top:5px}
+.secondary{
+  background:#e5edf5;
+  color:var(--navy);
+}
+.notice{
+  padding:13px;
+  border-radius:9px;
+  background:#fff5df;
+  color:#78551b;
+  margin-bottom:14px;
+}
+.message{
+  display:none;
+  padding:13px;
+  border-radius:8px;
+  margin:12px 0;
+  white-space:pre-wrap;
+}
+.success{display:block;background:var(--green);color:#17633a}
+.error{display:block;background:var(--red);color:#9b2525}
 .muted{color:var(--muted)}
-.notice{padding:12px;border-radius:9px;background:#fff5df;color:#78551b;margin-bottom:14px}
-.message{padding:12px;border-radius:8px;margin:12px 0;display:none;white-space:pre-wrap}
-.success{display:block;background:#e4f7ed;color:#17633a}
-.error{display:block;background:#fde8e8;color:#9b2525}
 .table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:650px}
-th,td{text-align:left;padding:11px;border-bottom:1px solid var(--line);font-size:13px}
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:650px;
+}
+th,td{
+  text-align:left;
+  padding:11px;
+  border-bottom:1px solid var(--line);
+  font-size:13px;
+}
 th{background:#f3f7fa;color:#536779}
 .hidden{display:none!important}
-footer{text-align:center;color:#8999a8;padding:25px}
+footer{
+  text-align:center;
+  color:#8999a8;
+  padding:25px;
+}
+@media(max-width:600px){
+  main{padding:0 10px}
+  .card{padding:14px}
+}
 </style>
 </head>
+
 <body>
+
 <header>
-  <h2>GORA Savings Management</h2>
-  <small>Member accounts • Deposits • Withdrawals • Approvals</small>
-  <button id="logout" class="secondary" style="float:right">Sign out</button>
+  <h2>GORA · Savings & Contributions</h2>
+  <a href="index.html">← Back to GORA workspace</a>
 </header>
 
 <main>
-<section class="card" id="loginCard">
-  <h3>Staff sign in</h3>
-  <form id="loginForm">
-    <label>Email address</label>
-    <input id="email" type="email" required autocomplete="username">
-    <label>Password</label>
-    <input id="password" type="password" required autocomplete="current-password">
-    <button id="loginBtn">Sign in</button>
-  </form>  <details open style="margin-top:20px">
-    <summary>Supabase connection settings</summary>
-    <label>Supabase project URL</label>
-    <input id="supabaseUrl" type="url" placeholder="https://your-project.supabase.co">
-    <label>Supabase anon / publishable key</label>
-    <textarea id="supabaseKey" rows="3" placeholder="sb_publishable_..."></textarea>
-    <button type="button" id="saveConnection" class="secondary">Save connection settings</button>
-  </details>
+
+<div id="message" class="message"></div>
+
+<section id="loadingCard" class="card">
+  <h3>Connecting to GORA</h3>
+  <p class="muted">Checking your existing staff session...</p>
 </section>
 
 <section id="workspace" class="hidden">
+
   <div class="card">
     <h3>Savings overview</h3>
     <div class="grid">
-      <div class="stat">Active accounts<strong id="accountCount">0</strong></div>
-      <div class="stat">Pending transactions<strong id="pendingCount">0</strong></div>
-      <div class="stat">Posted deposits<strong id="depositTotal">KES 0</strong></div>
-      <div class="stat">Total savings liability<strong id="balanceTotal">KES 0</strong></div>
+      <div class="stat">
+        Active accounts
+        <strong id="accountCount">0</strong>
+      </div>
+      <div class="stat">
+        Pending transactions
+        <strong id="pendingCount">0</strong>
+      </div>
+      <div class="stat">
+        Posted deposits
+        <strong id="depositTotal">KES 0</strong>
+      </div>
+      <div class="stat">
+        Member savings liability
+        <strong id="balanceTotal">KES 0</strong>
+      </div>
     </div>
     <p class="muted" id="staffInfo"></p>
   </div>
 
   <div class="notice">
-    Deposits and withdrawals remain PENDING until approved by a different authorised manager. Pending transactions do not change posted balances.
+    Deposits and withdrawals remain PENDING until approved by an authorised manager.
+    Pending transactions do not change posted savings balances.
+    Member savings are not GORA lending capital.
   </div>
 
-  <div class="card" id="openCard">
+  <section class="card" id="openCard">
     <h3>Open savings account</h3>
+
     <form id="openForm">
       <label>Approved member</label>
-      <select id="member" required><option value="">Loading members...</option></select>
-      <label>Branch</label>
-      <select id="branch"><option value="">Head office / no branch selected</option></select>
-      <button id="openBtn">Open account</button>
-    </form>
-    <p class="muted">Only approved or active members can receive savings accounts.</p>
-  </div>
+      <select id="member" required>
+        <option value="">Loading members...</option>
+      </select>
 
-  <div class="card" id="recordCard">
-    <h3>Record deposit or withdrawal</h3>
+      <label>Branch</label>
+      <select id="branch">
+        <option value="">Head office / no branch selected</option>
+      </select>
+
+      <button id="openBtn" type="submit">Open savings account</button>
+    </form>
+  </section>
+
+  <section class="card" id="recordCard">
+    <h3>Record savings transaction</h3>
+
     <form id="transactionForm">
+
       <label>Savings account</label>
-      <select id="account" required><option value="">Select account</option></select>
+      <select id="account" required>
+        <option value="">Select account</option>
+      </select>
+
       <div class="grid">
         <div>
           <label>Transaction type</label>
@@ -104,10 +215,12 @@ footer{text-align:center;color:#8999a8;padding:25px}
             <option value="WITHDRAWAL">Withdrawal</option>
           </select>
         </div>
+
         <div>
           <label>Amount (KES)</label>
           <input id="amount" type="number" min="0.01" step="0.01" required>
         </div>
+
         <div>
           <label>Payment method</label>
           <select id="method" required>
@@ -118,293 +231,511 @@ footer{text-align:center;color:#8999a8;padding:25px}
           </select>
         </div>
       </div>
-      <label>Payment reference (optional)</label>
-      <input id="reference" maxlength="100">
-      <label>Description (optional)</label>
-      <textarea id="description" rows="2"></textarea>
-      <button id="recordBtn">Record pending transaction</button>
+
+      <label>Payment reference</label>
+      <input id="reference" maxlength="100" placeholder="M-Pesa code or receipt number">
+
+      <label>Description</label>
+      <textarea id="description" rows="2" placeholder="Optional transaction details"></textarea>
+
+      <button id="recordBtn" type="submit">
+        Record pending transaction
+      </button>
     </form>
-  </div>
+  </section>
 
-  <div class="card">
+  <section class="card">
     <h3>Pending approvals</h3>
-    <p class="muted">Only managers and super administrators can approve. The person who recorded a transaction cannot approve it.</p>
+    <p class="muted">
+      A staff member cannot approve their own transaction.
+      Only authorised managers can approve transactions.
+    </p>
+
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Transaction</th><th>Account</th><th>Type</th><th>Amount</th><th>Recorded</th><th>Action</th></tr></thead>
-        <tbody id="pendingRows"><tr><td colspan="6">No pending transactions.</td></tr></tbody>
+        <thead>
+          <tr>
+            <th>Transaction</th>
+            <th>Account</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Recorded by</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="pendingRows">
+          <tr><td colspan="6">No pending transactions.</td></tr>
+        </tbody>
       </table>
     </div>
-  </div>
+  </section>
 
-  <div class="card">
+  <section class="card">
     <h3>Savings accounts</h3>
+
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Account number</th><th>Member</th><th>Status</th><th>Posted balance</th></tr></thead>
-        <tbody id="accountRows"><tr><td colspan="4">No accounts found.</td></tr></tbody>
+        <thead>
+          <tr>
+            <th>Account number</th>
+            <th>Member</th>
+            <th>Status</th>
+            <th>Posted balance</th>
+          </tr>
+        </thead>
+        <tbody id="accountRows">
+          <tr><td colspan="4">No accounts found.</td></tr>
+        </tbody>
       </table>
     </div>
-  </div>
+  </section>
 
-  <div class="card">
+  <section class="card">
     <h3>Recent savings transactions</h3>
+
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Reference</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
-        <tbody id="transactionRows"><tr><td colspan="5">No transactions found.</td></tr></tbody>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Reference</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Payment method</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="transactionRows">
+          <tr><td colspan="6">No transactions found.</td></tr>
+        </tbody>
       </table>
     </div>
-  </div>
-</section>
+  </section>
 
-<div id="message" class="message"></div>
+  <p class="muted">
+    GORA Savings & Credit Group · Internal management system
+  </p>
+
+</section>
 </main>
-<footer>GORA Savings & Credit Group • Internal management system</footer>
 
 <script>
-let URL=localStorage.getItem("gora_url")||"";
-let KEY=localStorage.getItem("gora_key")||"";
-const $=id=>document.getElementById(id);
-const money=n=>new Intl.NumberFormat("en-KE",{style:"currency",currency:"KES"}).format(Number(n||0));
-let db,user,orgId,roles=[],accounts=[],members=[],transactions=[],balances={};
-$("supabaseUrl").value=URL;
-$("supabaseKey").value=KEY;
+const $ = id => document.getElementById(id);
 
-$("saveConnection").addEventListener("click",()=>{
-  const nextUrl=$("supabaseUrl").value.trim();
-  const nextKey=$("supabaseKey").value.trim();
+let db = null;
+let user = null;
+let orgId = null;
+let roles = [];
+let accounts = [];
+let members = [];
+let balances = {};
 
-  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(nextUrl)){
-    say("Enter a valid HTTPS Supabase project URL.","error");
-    return;
-  }
+const money = value =>
+  new Intl.NumberFormat("en-KE", {
+    style:"currency",
+    currency:"KES"
+  }).format(Number(value || 0));
 
-  if(!nextKey.startsWith("sb_publishable_")){
-    say("Enter your Supabase publishable key.","error");
-    return;
-  }
+function safe(value){
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;",
+    "'":"&#39;"
+  })[char]);
+}
 
-  URL=nextUrl;
-  KEY=nextKey;
-  localStorage.setItem("gora_url",URL);
-  localStorage.setItem("gora_key",KEY);
-  say("Connection settings saved on this page. You can now sign in.");
-});
-function say(message,kind="success"){
-  $("message").textContent=message;
-  $("message").className="message "+kind;
+function say(message, type="success"){
+  $("message").textContent = message;
+  $("message").className = "message " + type;
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function safe(v){
-  return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function has(...allowed){
+  return roles.some(role => allowed.includes(role));
 }
-function has(...allowed){return roles.some(r=>allowed.includes(r));}
+
 async function check(result){
-  if(result.error)throw result.error;
+  if(result.error) throw result.error;
   return result.data;
 }
 
+/* Use the same Supabase session as the main GORA workspace.
+   No second login and no independent sign-out. */
+
 async function start(){
-  URL=localStorage.getItem("gora_url")||"";
-KEY=localStorage.getItem("gora_key")||"";
-if(!URL||!KEY)return;
-  db=window.supabase.createClient(URL,KEY);
-  const {data,error}=await db.auth.getSession();
-  if(error)throw error;
-  if(!data.session)return;
-  user=data.session.user;
+
+  const url = localStorage.getItem("gora_url");
+  const key = localStorage.getItem("gora_key");
+
+  if(!url || !key){
+    throw new Error("GORA connection settings were not found. Please open the main GORA workspace first.");
+  }
+
+  db = window.supabase.createClient(url,key);
+
+  const sessionResult = await db.auth.getSession();
+
+  if(sessionResult.error) throw sessionResult.error;
+
+  const session = sessionResult.data.session;
+
+  if(!session){
+    throw new Error("No active GORA session. Please sign in through the main GORA workspace first.");
+  }
+
+  user = session.user;
+
   await loadWorkspace();
 }
 
 async function loadWorkspace(){
-  const roleRows=await check(await db.from("user_roles")
-    .select("organization_id,roles(role_code)")
-    .eq("user_id",user.id).eq("is_active",true));
 
-  roles=roleRows.map(x=>x.roles?.role_code).filter(Boolean);
-  const orgs=[...new Set(roleRows.map(x=>x.organization_id))];
-  if(orgs.length!==1)throw new Error("Your account must have exactly one active GORA organisation assignment.");
-  orgId=orgs[0];
+  const roleRows = await check(
+    await db.from("user_roles")
+      .select("organization_id,roles(role_code)")
+      .eq("user_id",user.id)
+      .eq("is_active",true)
+  );
 
-  if(!has("SUPER_ADMIN","MANAGER","CASHIER","ACCOUNTANT","LOAN_OFFICER","AUDITOR"))
-    throw new Error("Your staff role does not have access to savings management.");
+  roles = roleRows.map(row => row.roles?.role_code).filter(Boolean);
 
-  $("loginCard").classList.add("hidden");
+  const organizations = [
+    ...new Set(roleRows.map(row => row.organization_id))
+  ];
+
+  if(organizations.length !== 1){
+    throw new Error("Your account must have exactly one active GORA organisation assignment.");
+  }
+
+  orgId = organizations[0];
+
+  if(!has(
+    "SUPER_ADMIN",
+    "MANAGER",
+    "CASHIER",
+    "ACCOUNTANT",
+    "LOAN_OFFICER",
+    "AUDITOR"
+  )){
+    throw new Error("Your staff role does not have access to Savings Management.");
+  }
+
+  $("loadingCard").classList.add("hidden");
   $("workspace").classList.remove("hidden");
-  $("staffInfo").textContent="Signed in: "+user.email+" • Role: "+roles.join(", ");
-  $("openCard").classList.toggle("hidden",!has("SUPER_ADMIN","MANAGER","CASHIER"));
-  $("recordCard").classList.toggle("hidden",!has("SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER"));
+
+  $("staffInfo").textContent =
+    "Signed in as " + (user.email || user.id) +
+    " · Role: " + roles.join(", ");
+
+  $("openCard").classList.toggle(
+    "hidden",
+    !has("SUPER_ADMIN","MANAGER","CASHIER")
+  );
+
+  $("recordCard").classList.toggle(
+    "hidden",
+    !has("SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER")
+  );
+
   await loadData();
 }
 
 async function loadData(){
-  const [a,t,p,b,br]=await Promise.all([
-    db.from("savings_accounts")
-      .select("id,account_number,member_id,status,branch_id,opened_at")
-      .eq("organization_id",orgId).order("opened_at",{ascending:false}),
-    db.from("savings_transactions")
-      .select("id,savings_account_id,transaction_number,transaction_type,amount,payment_method,status,recorded_by,transaction_date")
-      .eq("organization_id",orgId).order("transaction_date",{ascending:false}).limit(60),
-    db.from("savings_transactions")
-      .select("id,savings_account_id,transaction_number,transaction_type,amount,recorded_by,transaction_date")
-      .eq("organization_id",orgId).eq("status","PENDING").order("transaction_date",{ascending:true}),
-    db.rpc("get_savings_account_balances",{_organization_id:orgId}),
-    db.from("branches").select("id,branch_name")
-      .eq("organization_id",orgId).eq("status","ACTIVE").order("branch_name")
-  ]);
 
-  accounts=await check(a)||[];
-  transactions=await check(t)||[];
-  const pending=await check(p)||[];
-  const balanceRows=await check(b)||[];
-  const branches=await check(br)||[];
+  const [accountResult,transactionResult,pendingResult,balanceResult,branchResult,memberResult] =
+    await Promise.all([
 
-  balances={};
-  balanceRows.forEach(x=>{balances[x.savings_account_id]=Number(x.posted_balance||0);});
+      db.from("savings_accounts")
+        .select("id,account_number,member_id,status,branch_id,opened_at")
+        .eq("organization_id",orgId)
+        .order("opened_at",{ascending:false}),
 
-  $("branch").innerHTML='<option value="">Head office / no branch selected</option>'+
-    branches.map(x=>`<option value="${safe(x.id)}">${safe(x.branch_name)}</option>`).join("");
+      db.from("savings_transactions")
+        .select("id,savings_account_id,transaction_number,transaction_type,amount,payment_method,status,recorded_by,transaction_date")
+        .eq("organization_id",orgId)
+        .order("transaction_date",{ascending:false})
+        .limit(60),
 
-  if(has("SUPER_ADMIN","MANAGER","LOAN_OFFICER","CASHIER")){
-    members=await check(await db.from("members")
-      .select("id,member_number,full_name,status")
-      .eq("organization_id",orgId)
-      .in("status",["APPROVED","ACTIVE"])
-      .order("full_name"))||[];
-    $("member").innerHTML='<option value="">Select approved member</option>'+
-      members.map(m=>`<option value="${safe(m.id)}">${safe(m.member_number||"Awaiting number")} — ${safe(m.full_name)}</option>`).join("");
-  }
+      db.from("savings_transactions")
+        .select("id,savings_account_id,transaction_number,transaction_type,amount,recorded_by,transaction_date")
+        .eq("organization_id",orgId)
+        .eq("status","PENDING")
+        .order("transaction_date",{ascending:true}),
 
-  $("accountCount").textContent=accounts.filter(x=>x.status==="ACTIVE").length;
-  $("pendingCount").textContent=pending.length;
+      db.rpc("get_savings_account_balances",{
+        _organization_id:orgId
+      }),
 
-  const totalDeposits=balanceRows.reduce((s,x)=>s+Number(x.posted_deposits||0),0);
-  const totalBalance=balanceRows.reduce((s,x)=>s+Number(x.posted_balance||0),0);
-  $("depositTotal").textContent=money(totalDeposits);
-  $("balanceTotal").textContent=money(totalBalance);
+      db.from("branches")
+        .select("id,branch_name")
+        .eq("organization_id",orgId)
+        .eq("status","ACTIVE")
+        .order("branch_name"),
 
-  $("account").innerHTML='<option value="">Select account</option>'+
-    accounts.filter(x=>x.status==="ACTIVE").map(x=>
-      `<option value="${safe(x.id)}">${safe(x.account_number)} — ${money(balances[x.id]||0)}</option>`
+      db.from("members")
+        .select("id,member_number,full_name,status")
+        .eq("organization_id",orgId)
+        .order("full_name")
+    ]);
+
+  accounts = await check(accountResult) || [];
+
+  const transactions = await check(transactionResult) || [];
+  const pending = await check(pendingResult) || [];
+  const balanceRows = await check(balanceResult) || [];
+  const branches = await check(branchResult) || [];
+
+  members = await check(memberResult) || [];
+
+  balances = {};
+
+  balanceRows.forEach(row => {
+    balances[row.savings_account_id] =
+      Number(row.posted_balance || 0);
+  });
+
+  const memberNames = Object.fromEntries(
+    members.map(member => [member.id,member.full_name])
+  );
+
+  $("branch").innerHTML =
+    '<option value="">Head office / no branch selected</option>' +
+    branches.map(branch =>
+      `<option value="${safe(branch.id)}">${safe(branch.branch_name)}</option>`
     ).join("");
 
-  const memberNames=Object.fromEntries(members.map(m=>[m.id,m.full_name]));
-  $("accountRows").innerHTML=accounts.length?accounts.map(a=>`
-    <tr>
-      <td>${safe(a.account_number)}</td>
-      <td>${safe(memberNames[a.member_id]||"Member ID: "+a.member_id.slice(0,8))}</td>
-      <td>${safe(a.status)}</td>
-      <td>${money(balances[a.id]||0)}</td>
-    </tr>`).join(""):'<tr><td colspan="4">No accounts found.</td></tr>';
+  const eligibleMembers = members.filter(member =>
+    ["APPROVED","ACTIVE"].includes(member.status)
+  );
 
-  $("pendingRows").innerHTML=pending.length?pending.map(x=>`
-    <tr>
-      <td>${safe(x.transaction_number)}</td>
-      <td>${safe(accounts.find(a=>a.id===x.savings_account_id)?.account_number||"")}</td>
-      <td>${safe(x.transaction_type)}</td>
-      <td>${money(x.amount)}</td>
-      <td>${safe(x.recorded_by===user.id?"You":"Another staff member")}</td>
-      <td>${has("SUPER_ADMIN","MANAGER")&&x.recorded_by!==user.id?
-        `<button data-approve="${safe(x.id)}">Approve</button>`:
-        "Awaiting authorised approval"}</td>
-    </tr>`).join(""):'<tr><td colspan="6">No pending transactions.</td></tr>';
+  $("member").innerHTML =
+    '<option value="">Select approved member</option>' +
+    eligibleMembers.map(member =>
+      `<option value="${safe(member.id)}">${safe(member.member_number || "Awaiting number")} — ${safe(member.full_name)}</option>`
+    ).join("");
 
-  $("transactionRows").innerHTML=transactions.length?transactions.map(x=>`
-    <tr>
-      <td>${safe(new Date(x.transaction_date).toLocaleString("en-KE"))}</td>
-      <td>${safe(x.transaction_number)}</td>
-      <td>${safe(x.transaction_type)}</td>
-      <td>${money(x.amount)}</td>
-      <td>${safe(x.status)}</td>
-    </tr>`).join(""):'<tr><td colspan="5">No transactions found.</td></tr>';
+  $("accountCount").textContent =
+    accounts.filter(account => account.status === "ACTIVE").length;
+
+  $("pendingCount").textContent = pending.length;
+
+  $("depositTotal").textContent = money(
+    balanceRows.reduce(
+      (sum,row) => sum + Number(row.posted_deposits || 0),0
+    )
+  );
+
+  $("balanceTotal").textContent = money(
+    balanceRows.reduce(
+      (sum,row) => sum + Number(row.posted_balance || 0),0
+    )
+  );
+
+  $("account").innerHTML =
+    '<option value="">Select account</option>' +
+    accounts
+      .filter(account => account.status === "ACTIVE")
+      .map(account =>
+        `<option value="${safe(account.id)}">${safe(account.account_number)} — ${safe(memberNames[account.member_id] || "Member")} — ${money(balances[account.id] || 0)}</option>`
+      ).join("");
+
+  $("accountRows").innerHTML = accounts.length
+    ? accounts.map(account => `
+      <tr>
+        <td>${safe(account.account_number)}</td>
+        <td>${safe(memberNames[account.member_id] || "Member")}</td>
+        <td>${safe(account.status)}</td>
+        <td>${money(balances[account.id] || 0)}</td>
+      </tr>
+    `).join("")
+    : '<tr><td colspan="4">No accounts found.</td></tr>';
+
+  $("pendingRows").innerHTML = pending.length
+    ? pending.map(transaction => `
+      <tr>
+        <td>${safe(transaction.transaction_number)}</td>
+        <td>${safe(accounts.find(a => a.id === transaction.savings_account_id)?.account_number || "")}</td>
+        <td>${safe(transaction.transaction_type)}</td>
+        <td>${money(transaction.amount)}</td>
+        <td>${transaction.recorded_by === user.id ? "You" : "Another staff member"}</td>
+        <td>
+          ${
+            has("SUPER_ADMIN","MANAGER") &&
+            transaction.recorded_by !== user.id
+            ? `<button data-approve="${safe(transaction.id)}">Approve</button>`
+            : "Awaiting authorised approval"
+          }
+        </td>
+      </tr>
+    `).join("")
+    : '<tr><td colspan="6">No pending transactions.</td></tr>';
+
+  $("transactionRows").innerHTML = transactions.length
+    ? transactions.map(transaction => `
+      <tr>
+        <td>${safe(new Date(transaction.transaction_date).toLocaleString("en-KE"))}</td>
+        <td>${safe(transaction.transaction_number)}</td>
+        <td>${safe(transaction.transaction_type)}</td>
+        <td>${money(transaction.amount)}</td>
+        <td>${safe(transaction.payment_method)}</td>
+        <td>${safe(transaction.status)}</td>
+      </tr>
+    `).join("")
+    : '<tr><td colspan="6">No transactions found.</td></tr>';
 }
 
-$("loginForm").addEventListener("submit",async e=>{
-  e.preventDefault();
-  $("loginBtn").disabled=true;
-  try{
-    URL=localStorage.getItem("gora_url")||"";
-KEY=localStorage.getItem("gora_key")||"";
-if(!URL||!KEY)throw new Error("Enter and save the Supabase connection settings on this page first.");
-    db=window.supabase.createClient(URL,KEY);
-    const {data,error}=await db.auth.signInWithPassword({
-      email:$("email").value.trim(),password:$("password").value
-    });
-    if(error)throw error;
-    user=data.user;
-    await loadWorkspace();
-    say("Signed in successfully.");
-  }catch(err){say(err.message,"error");}
-  finally{$("loginBtn").disabled=false;}
-});
+/* Open a savings account */
 
-$("openForm").addEventListener("submit",async e=>{
-  e.preventDefault();
-  $("openBtn").disabled=true;
+$("openForm").addEventListener("submit",async event => {
+
+  event.preventDefault();
+
+  $("openBtn").disabled = true;
+
   try{
-    if(!has("SUPER_ADMIN","MANAGER","CASHIER"))throw new Error("Not authorised to open accounts.");
-    const memberId=$("member").value;
-    if(!memberId)throw new Error("Select an approved member.");
-    await check(await db.rpc("open_savings_account",{
-      _organization_id:orgId,
-      _member_id:memberId,
-      _branch_id:$("branch").value||null
-    }));
+
+    if(!has("SUPER_ADMIN","MANAGER","CASHIER")){
+      throw new Error("You are not authorised to open savings accounts.");
+    }
+
+    const memberId = $("member").value;
+
+    if(!memberId){
+      throw new Error("Select an approved member.");
+    }
+
+    await check(
+      await db.rpc("open_savings_account",{
+        _organization_id:orgId,
+        _member_id:memberId,
+        _branch_id:$("branch").value || null
+      })
+    );
+
     say("Savings account opened successfully.");
-    e.target.reset();
+
+    event.target.reset();
+
     await loadData();
-  }catch(err){say(err.message,"error");}
-  finally{$("openBtn").disabled=false;}
+
+  }catch(error){
+
+    say(error.message,"error");
+
+  }finally{
+
+    $("openBtn").disabled = false;
+  }
 });
 
-$("transactionForm").addEventListener("submit",async e=>{
-  e.preventDefault();
-  $("recordBtn").disabled=true;
+/* Record a deposit or withdrawal as pending */
+
+$("transactionForm").addEventListener("submit",async event => {
+
+  event.preventDefault();
+
+  $("recordBtn").disabled = true;
+
   try{
-    if(!has("SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER"))
-      throw new Error("Not authorised to record transactions.");
-    const amount=Number($("amount").value);
-    if(!Number.isFinite(amount)||amount<=0)throw new Error("Enter an amount greater than zero.");
-    const accountId=$("account").value;
-    if(!accountId)throw new Error("Select a savings account.");
 
-    await check(await db.rpc("record_savings_transaction",{
-      _organization_id:orgId,
-      _savings_account_id:accountId,
-      _transaction_type:$("type").value,
-      _amount:amount,
-      _payment_method:$("method").value,
-      _reference_number:$("reference").value.trim()||null,
-      _description:$("description").value.trim()||null
-    }));
+    if(!has("SUPER_ADMIN","MANAGER","CASHIER","LOAN_OFFICER")){
+      throw new Error("You are not authorised to record savings transactions.");
+    }
 
-    say("Transaction recorded as PENDING. It has not changed the posted balance.");
-    e.target.reset();
+    const amount = Number($("amount").value);
+    const accountId = $("account").value;
+
+    if(!Number.isFinite(amount) || amount <= 0){
+      throw new Error("Enter an amount greater than zero.");
+    }
+
+    if(!accountId){
+      throw new Error("Select a savings account.");
+    }
+
+    await check(
+      await db.rpc("record_savings_transaction",{
+        _organization_id:orgId,
+        _savings_account_id:accountId,
+        _transaction_type:$("type").value,
+        _amount:amount,
+        _payment_method:$("method").value,
+        _reference_number:$("reference").value.trim() || null,
+        _description:$("description").value.trim() || null
+      })
+    );
+
+    say("Transaction recorded as PENDING. The posted balance has not changed.");
+
+    event.target.reset();
+
     await loadData();
-  }catch(err){say(err.message,"error");}
-  finally{$("recordBtn").disabled=false;}
+
+  }catch(error){
+
+    say(error.message,"error");
+
+  }finally{
+
+    $("recordBtn").disabled = false;
+  }
 });
 
-$("pendingRows").addEventListener("click",async e=>{
-  const id=e.target.dataset.approve;
-  if(!id)return;
-  if(!has("SUPER_ADMIN","MANAGER"))return say("Only a manager or super administrator can approve.","error");
-  if(!confirm("Approve and post this savings transaction?"))return;
-  e.target.disabled=true;
+/* Approve pending transactions */
+
+$("pendingRows").addEventListener("click",async event => {
+
+  const transactionId = event.target.dataset.approve;
+
+  if(!transactionId) return;
+
+  if(!has("SUPER_ADMIN","MANAGER")){
+    say("Only a manager or super administrator can approve transactions.","error");
+    return;
+  }
+
+  if(!confirm("Approve and post this savings transaction?")){
+    return;
+  }
+
+  event.target.disabled = true;
+
   try{
-    await check(await db.rpc("approve_savings_transaction",{_transaction_id:id}));
+
+    await check(
+      await db.rpc("approve_savings_transaction",{
+        _transaction_id:transactionId
+      })
+    );
+
     say("Transaction approved and posted.");
+
     await loadData();
-  }catch(err){say(err.message,"error");await loadData();}
+
+  }catch(error){
+
+    say(error.message,"error");
+
+    await loadData();
+  }
 });
 
-$("logout").addEventListener("click",async()=>{
-  if(db)await db.auth.signOut();
-  location.reload();
-});
+/* Start using the existing GORA session */
 
-start().catch(err=>say(err.message,"error"));
+start().catch(error => {
+
+  $("loadingCard").classList.remove("hidden");
+
+  say(error.message,"error");
+
+});
 </script>
+
+<footer>
+  GORA Savings & Credit Group
+</footer>
+
 </body>
 </html>
