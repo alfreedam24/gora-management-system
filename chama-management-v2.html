@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,6 +30,7 @@ button:disabled{opacity:.5}
 .item{border:1px solid #e0e7ed;border-radius:10px;padding:14px;margin:10px 0}
 .item strong{color:var(--navy)}
 .tag{font-size:12px;background:#e8f5f3;color:#08756e;padding:4px 8px;border-radius:20px}
+.pending-tag{background:#fff2d9;color:#815400}
 .empty{text-align:center;padding:22px;color:#718096}
 footer{text-align:center;padding:18px;color:#8491a0;font-size:12px}
 @media(max-width:560px){.grid{grid-template-columns:1fr}.top{align-items:flex-start}}
@@ -72,6 +72,7 @@ footer{text-align:center;padding:18px;color:#8491a0;font-size:12px}
 
 <div class="card">
 <h2>Create a chama group</h2>
+<p class="muted">New groups are submitted as PENDING. Assign at least 5 approved members, then approve the group in the Chama Group Approval centre before it starts operations.</p>
 <form id="createForm">
 <div class="grid">
 <div>
@@ -127,7 +128,7 @@ footer{text-align:center;padding:18px;color:#8491a0;font-size:12px}
 
 <div class="card">
 <h2>Assign or transfer a member</h2>
-<p class="muted">Only approved or active members can be assigned. Previous group history is preserved.</p>
+<p class="muted">Only approved or active members can be assigned. Members can be assigned to PENDING groups while they build the minimum of 5 members. Previous group history is preserved.</p>
 <label>Member</label>
 <select id="memberSelect"><option value="">Select member</option></select>
 <label>Destination chama</label>
@@ -241,7 +242,7 @@ async function loadReferenceData(){
   title.textContent=g.group_code+" — "+g.group_name;
 
   const tag=document.createElement("span");
-  tag.className="tag";
+  tag.className="tag"+(g.status==="PENDING"?" pending-tag":"");
   tag.textContent=g.status;
 
   const detail=document.createElement("div");
@@ -254,10 +255,12 @@ async function loadReferenceData(){
   item.append(title,document.createTextNode(" "),tag,detail);
   $("groupsList").append(item);
 
-  if(g.status==="ACTIVE"){
+  // Pending groups must accept members so they can reach the five-member minimum.
+  // Active groups remain available for normal assignments and transfers.
+  if(g.status==="ACTIVE"||g.status==="PENDING"){
    const o=document.createElement("option");
    o.value=g.id;
-   o.textContent=g.group_code+" — "+g.group_name;
+   o.textContent=g.group_code+" — "+g.group_name+" ("+g.status+")";
    $("destinationSelect").append(o);
   }
  });
@@ -339,7 +342,7 @@ $("createForm").addEventListener("submit",async e=>{
   $("createForm").reset();
   $("target").value="100";
 
-  message("pageMessage","Chama group created successfully. Reference: "+data,"success");
+  message("pageMessage","Chama group created successfully as PENDING. Assign at least 5 approved members, then approve it in the Chama Group Approval centre. Reference: "+data,"success");
   await loadReferenceData();
 
  }catch(err){
