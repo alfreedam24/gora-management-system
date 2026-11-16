@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#075985"><title>GORA | Capital Management</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.capgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.capcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px}
+.capcard small{color:var(--muted);font-weight:650}.capcard strong{display:block;font-size:22px;margin-top:9px}
+.capform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
+.capform .wide{grid-column:1/-1}.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.capnote{background:#eaf5fa;border:1px solid #cfe6f1;color:#28546b;padding:13px 15px;border-radius:12px;font-size:12px;margin-bottom:15px}
+.cap-table{overflow:auto;background:white;border:1px solid var(--line);border-radius:14px}.cap-table table{min-width:760px}
+.plus{color:#087b67;font-weight:750}.minus{color:#b5473e;font-weight:750}
+@media(max-width:900px){.capgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.capform{grid-template-columns:1fr}.capform .wide{grid-column:auto}.capcard{padding:12px}.capcard strong{font-size:19px}}
+</style></head><body>
+<div class="page-wrap" style="max-width:1200px">
+<div class="page-heading"><div><div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div><h2>Capital Management</h2><div class="sub">Owner capital and owner loans, recorded separately from member savings.</div></div><div class="actions"><button class="secondary" id="back">← Workspace</button><button class="secondary" id="refresh">Refresh</button></div></div>
+<div id="status" class="notice">Checking your secure GORA session…</div>
+<div id="workspace" class="hidden">
+<div class="capgrid" id="summary"></div>
+<div class="capnote"><b>Accounting separation:</b> Member savings are not part of this ledger. Owner capital and owner loans are different balances. These figures are not cash-on-hand, bank balance, M-Pesa balance or available lending capital.</div>
+<div class="panel"><h3>Record a capital movement</h3><form id="entry" class="capform">
+<label>Transaction type<select name="transaction_type" required>
+<option value="capital_contribution">Owner capital introduced</option>
+<option value="capital_withdrawal">Owner withdrawal from capital</option>
+<option value="owner_loan_in">Owner lends money to GORA</option>
+<option value="owner_loan_repayment">GORA repays owner loan</option></select></label>
+<label>Amount (KSh)<input name="amount" type="number" min="0.01" step="0.01" required placeholder="e.g. 25000"></label>
+<label>Date<input name="transaction_date" type="date" required></label>
+<label>Payment channel<select name="payment_method" required><option value="cash">Physical cash</option><option value="mpesa">M-Pesa</option><option value="bank">Bank</option><option value="other">Other</option></select></label>
+<label>Reference / receipt<input name="reference" maxlength="100" placeholder="Optional"></label>
+<label class="wide">Description / reason<input name="description" maxlength="500" required placeholder="Explain the source or purpose"></label>
+<div class="wide actions"><button class="primary" id="save" type="submit">Save transaction</button><span class="sub">Entries are permanent from this screen. Check details before saving.</span></div></form><p id="message" class="message" role="status"></p></div>
+<div class="panel"><div class="page-heading"><div><h3>Capital movement history</h3><div class="sub">Latest 500 records</div></div><input id="search" placeholder="Search description or reference" style="width:min(280px,100%);margin:0"></div>
+<div class="cap-table"><table><thead><tr><th>Date</th><th>Transaction</th><th>Description</th><th>Channel</th><th>Reference</th><th>Amount</th></tr></thead><tbody id="history"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table></div></div>
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES',maximumFractionDigits:2}).format(Number(n||0));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const labels={capital_contribution:'Owner capital introduced',capital_withdrawal:'Owner capital withdrawal',owner_loan_in:'Owner loan to GORA',owner_loan_repayment:'Repayment of owner loan'};
+const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+let db,orgId,userId,rows=[];
+$('entry').elements.transaction_date.value=today();
+$('back').onclick=()=>location.href='index.html';$('refresh').onclick=load;
+async function init(){
+ const url=localStorage.getItem('gora_url'),key=localStorage.getItem('gora_key');
+ if(!url||!key||!window.supabase){$('status').textContent='Connection settings missing. Return to the main GORA login screen and save the current project URL and publishable key.';return}
+ db=window.supabase.createClient(url,key);
+ const {data:{session},error}=await db.auth.getSession();
+ if(error||!session){$('status').textContent='Your session has expired. Sign in through the main GORA workspace, then reopen Capital Management.';return}
+ userId=session.user.id;
+ const {data:p,error:pe}=await db.from('profiles').select('active').eq('id',userId).single();
+ if(pe||!p?.active){$('status').textContent='Your GORA staff profile is inactive or could not be verified.';return}
+ const {data:roles,error:re}=await db.from('user_roles').select('organization_id').eq('user_id',userId).eq('is_active',true).limit(2);
+ if(re||!roles?.length){$('status').textContent='No active organisation assignment was found. Ask the administrator to check your user role.';return}
+ if(roles.length!==1){$('status').textContent='Your account has multiple active organisations. An organisation selector is required before recording transactions. Nothing was saved.';return}
+ orgId=roles[0].organization_id;$('status').classList.add('hidden');$('workspace').classList.remove('hidden');await load();
+}
+async function load(){
+ if(!db||!orgId)return;
+ $('history').innerHTML='<tr><td colspan="6" class="empty">Loading…</td></tr>';
+ const {data,error}=await db.from('capital_transactions').select('id,transaction_type,amount,transaction_date,payment_method,reference,description,created_at').eq('organization_id',orgId).order('transaction_date',{ascending:false}).order('created_at',{ascending:false}).limit(500);
+ if(error){$('status').classList.remove('hidden');$('status').textContent='Could not load capital ledger: '+error.message;return}
+ rows=data||[];render();
+}
+function sum(t){return rows.filter(x=>x.transaction_type===t).reduce((s,x)=>s+Number(x.amount||0),0)}
+function render(){
+ const contribution=sum('capital_contribution'),withdrawal=sum('capital_withdrawal'),loanIn=sum('owner_loan_in'),loanRepay=sum('owner_loan_repayment');
+ $('summary').innerHTML=[['Total owner capital introduced',money(contribution)],['Owner withdrawals',money(withdrawal)],['Net owner capital',money(contribution-withdrawal)],['Owner loan payable',money(loanIn-loanRepay)]].map(([a,b])=>'<div class="capcard"><small>'+a+'</small><strong>'+b+'</strong></div>').join('');
+ const q=$('search').value.trim().toLowerCase(),shown=rows.filter(x=>!q||[x.description,x.reference,labels[x.transaction_type]].some(v=>String(v||'').toLowerCase().includes(q)));
+ $('history').innerHTML=shown.length?shown.map(x=>{const plus=['capital_contribution','owner_loan_in'].includes(x.transaction_type);return '<tr><td>'+esc(x.transaction_date)+'</td><td>'+esc(labels[x.transaction_type]||x.transaction_type)+'</td><td>'+esc(x.description)+'</td><td>'+esc(x.payment_method)+'</td><td>'+esc(x.reference||'—')+'</td><td class="'+(plus?'plus':'minus')+'">'+(plus?'+':'−')+money(x.amount)+'</td></tr>'}).join(''):'<tr><td colspan="6" class="empty">No capital transactions recorded yet.</td></tr>';
+}
+$('search').addEventListener('input',render);
+$('entry').onsubmit=async e=>{
+ e.preventDefault();const f=new FormData(e.target),type=f.get('transaction_type'),amount=Number(f.get('amount'));
+ if(!Number.isFinite(amount)||amount<=0){$('message').textContent='Enter an amount greater than zero.';return}
+ const outstanding=sum('owner_loan_in')-sum('owner_loan_repayment'),netCapital=sum('capital_contribution')-sum('capital_withdrawal');
+ if(type==='owner_loan_repayment'&&amount>outstanding){$('message').textContent='Amount exceeds the recorded owner loan payable ('+money(outstanding)+').';return}
+ if(type==='capital_withdrawal'&&amount>netCapital){$('message').textContent='Amount exceeds recorded net owner capital ('+money(netCapital)+').';return}
+ const payload={organization_id:orgId,transaction_type:type,amount,transaction_date:f.get('transaction_date'),payment_method:f.get('payment_method'),reference:f.get('reference').trim()||null,description:f.get('description').trim(),created_by:userId};
+ $('save').disabled=true;$('message').textContent='Saving…';
+ const {error}=await db.from('capital_transactions').insert(payload);$('save').disabled=false;
+ if(error){$('message').textContent='Not saved: '+error.message;return}
+ $('entry').reset();$('entry').elements.transaction_date.value=today();$('message').textContent='Transaction saved successfully.';await load();
+};
+init().catch(e=>$('status').textContent='Unable to open module: '+(e.message||e));
+})();
+</script></body></html>
