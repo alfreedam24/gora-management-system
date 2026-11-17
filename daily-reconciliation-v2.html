@@ -1,0 +1,332 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#075985">
+<title>GORA | Daily Reconciliation</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.recgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.reccard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px}
+.reccard small{color:var(--muted);font-weight:650}
+.reccard strong{display:block;font-size:21px;margin-top:9px}
+.recform{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px}
+.recform .wide{grid-column:1/-1}
+.rec-table{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px}
+.rec-table table{min-width:850px}
+.rec-note{background:#eaf5fa;border:1px solid #cfe6f1;color:#28546b;padding:13px 15px;border-radius:12px;font-size:12px;margin-bottom:15px}
+.rec-section{grid-column:1/-1;font-weight:750;color:#075985;padding:12px 0 4px;border-bottom:1px solid var(--line)}
+.good{color:#087b67;font-weight:750}
+.bad{color:#b5473e;font-weight:750}
+.pending{color:#9a6700;font-weight:750}
+@media(max-width:800px){.recgrid{grid-template-columns:1fr 1fr}.recform{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.recform{grid-template-columns:1fr}.recform .wide{grid-column:auto}.recform .rec-section{grid-column:1/-1}.recgrid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="page-wrap" style="max-width:1200px">
+ <div class="page-heading">
+  <div>
+   <div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div>
+   <h2>Daily Reconciliation</h2>
+   <div class="sub">Compare expected and actual cash, M-Pesa and bank balances.</div>
+  </div>
+  <div class="actions">
+   <button class="secondary" id="back">← Workspace</button>
+   <button class="secondary" id="refresh">Refresh</button>
+  </div>
+ </div>
+
+ <div id="status" class="notice">Checking your secure GORA session…</div>
+
+ <div id="workspace" class="hidden">
+  <div class="recgrid" id="summary"></div>
+
+  <div class="rec-note">
+   <b>Important financial control:</b> Member savings are liabilities, not GORA's own capital. Do not treat member savings as available lending capital. Actual cash, M-Pesa and bank balances must reflect the real money held in each channel.
+   <br><br>
+   Expected balances are manually entered in this first version. Automatic expected balances will be connected after the relevant transaction modules are integrated.
+  </div>
+
+  <div class="panel">
+   <h3>Record daily balances</h3>
+   <form id="entry" class="recform">
+    <label class="wide">Reconciliation date
+     <input name="reconciliation_date" type="date" required>
+    </label>
+
+    <div class="rec-section">1. Opening balances</div>
+    <label>Opening physical cash (KSh)
+     <input name="opening_cash" type="number" min="0" step="0.01" value="0" required>
+    </label>
+    <label>Opening M-Pesa (KSh)
+     <input name="opening_mpesa" type="number" min="0" step="0.01" value="0" required>
+    </label>
+    <label>Opening bank (KSh)
+     <input name="opening_bank" type="number" min="0" step="0.01" value="0" required>
+    </label>
+
+    <div class="rec-section">2. Expected closing balances</div>
+    <label>Expected cash (KSh)
+     <input name="expected_closing_cash" type="number" min="0" step="0.01" placeholder="Enter expected amount" required>
+    </label>
+    <label>Expected M-Pesa (KSh)
+     <input name="expected_closing_mpesa" type="number" min="0" step="0.01" placeholder="Enter expected amount" required>
+    </label>
+    <label>Expected bank (KSh)
+     <input name="expected_closing_bank" type="number" min="0" step="0.01" placeholder="Enter expected amount" required>
+    </label>
+
+    <div class="rec-section">3. Actual closing balances</div>
+    <label>Actual physical cash (KSh)
+     <input name="actual_closing_cash" type="number" min="0" step="0.01" placeholder="Count the cash" required>
+    </label>
+    <label>Actual M-Pesa (KSh)
+     <input name="actual_closing_mpesa" type="number" min="0" step="0.01" placeholder="Check M-Pesa balance" required>
+    </label>
+    <label>Actual bank (KSh)
+     <input name="actual_closing_bank" type="number" min="0" step="0.01" placeholder="Check bank balance" required>
+    </label>
+
+    <label class="wide">Notes / explanation of differences
+     <textarea name="notes" rows="3" maxlength="1000" placeholder="Explain shortages, excesses or unusual transactions"></textarea>
+    </label>
+
+    <div class="wide actions">
+     <button class="primary" id="save" type="submit">Save reconciliation</button>
+     <span class="sub">One reconciliation per organisation per day.</span>
+    </div>
+   </form>
+   <p id="message" class="message" role="status"></p>
+  </div>
+
+  <div class="panel">
+   <div class="page-heading">
+    <div>
+     <h3>Reconciliation history</h3>
+     <div class="sub">Daily balances and differences</div>
+    </div>
+    <input id="search" placeholder="Search date or status" style="width:min(230px,100%);margin:0">
+   </div>
+   <div class="rec-table">
+    <table>
+     <thead>
+      <tr>
+       <th>Date</th><th>Cash variance</th><th>M-Pesa variance</th>
+       <th>Bank variance</th><th>Status</th>
+      </tr>
+     </thead>
+     <tbody id="history">
+      <tr><td colspan="5" class="empty">Loading…</td></tr>
+     </tbody>
+    </table>
+   </div>
+  </div>
+ </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(()=>{
+'use strict';
+
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('en-KE',{
+ style:'currency',currency:'KES',maximumFractionDigits:2
+}).format(Number(n||0));
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({
+ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]));
+
+const today=()=>new Intl.DateTimeFormat('en-CA',{
+ timeZone:'Africa/Nairobi',
+ year:'numeric',month:'2-digit',day:'2-digit'
+}).format(new Date());
+
+let db,orgId,userId,rows=[];
+
+$('entry').elements.reconciliation_date.value=today();
+$('back').onclick=()=>location.href='index.html';
+$('refresh').onclick=load;
+
+async function init(){
+ const url=localStorage.getItem('gora_url');
+ const key=localStorage.getItem('gora_key');
+
+ if(!url||!key||!window.supabase){
+  $('status').textContent='Connection settings missing. Return to GORA login and check your Supabase settings.';
+  return;
+ }
+
+ db=window.supabase.createClient(url,key);
+
+ const {data:{session},error}=await db.auth.getSession();
+
+ if(error||!session){
+  $('status').textContent='Your session has expired. Sign in through the main GORA workspace first.';
+  return;
+ }
+
+ userId=session.user.id;
+
+ const {data:p,error:pe}=await db.from('profiles')
+  .select('active').eq('id',userId).single();
+
+ if(pe||!p?.active){
+  $('status').textContent='Your GORA staff profile is inactive or could not be verified.';
+  return;
+ }
+
+ const {data:roles,error:re}=await db.from('user_roles')
+  .select('organization_id')
+  .eq('user_id',userId)
+  .eq('is_active',true)
+  .limit(2);
+
+ if(re||!roles?.length){
+  $('status').textContent='No active organisation assignment was found.';
+  return;
+ }
+
+ if(roles.length!==1){
+  $('status').textContent='Multiple active organisations found. An organisation selector is required. Nothing was saved.';
+  return;
+ }
+
+ orgId=roles[0].organization_id;
+ $('status').classList.add('hidden');
+ $('workspace').classList.remove('hidden');
+ await load();
+}
+
+async function load(){
+ if(!db||!orgId)return;
+
+ $('history').innerHTML='<tr><td colspan="5" class="empty">Loading…</td></tr>';
+
+ const {data,error}=await db.from('daily_reconciliations')
+  .select('id,reconciliation_date,actual_closing_cash,actual_closing_mpesa,actual_closing_bank,cash_variance,mpesa_variance,bank_variance,status')
+  .eq('organization_id',orgId)
+  .order('reconciliation_date',{ascending:false})
+  .limit(365);
+
+ if(error){
+  $('message').textContent='Could not load history: '+error.message;
+  return;
+ }
+
+ rows=data||[];
+ render();
+}
+
+function varianceClass(v){
+ if(v===null||v===undefined)return 'pending';
+ return Number(v)===0?'good':'bad';
+}
+
+function render(){
+ const latest=rows[0];
+
+ $('summary').innerHTML=[
+  ['Reconciliations recorded',rows.length],
+  ['Latest reconciliation',latest?esc(latest.reconciliation_date):'None yet'],
+  ['Latest status',latest?esc(latest.status):'Not started']
+ ].map(([a,b])=>'<div class="reccard"><small>'+a+'</small><strong>'+b+'</strong></div>').join('');
+
+ const q=$('search').value.trim().toLowerCase();
+
+ const shown=rows.filter(x=>
+  String(x.reconciliation_date).includes(q)||
+  String(x.status).toLowerCase().includes(q)
+ );
+
+ $('history').innerHTML=shown.length?shown.map(x=>`
+  <tr>
+   <td>${esc(x.reconciliation_date)}</td>
+   <td class="${varianceClass(x.cash_variance)}">${x.cash_variance===null?'—':money(x.cash_variance)}</td>
+   <td class="${varianceClass(x.mpesa_variance)}">${x.mpesa_variance===null?'—':money(x.mpesa_variance)}</td>
+   <td class="${varianceClass(x.bank_variance)}">${x.bank_variance===null?'—':money(x.bank_variance)}</td>
+   <td class="${x.status==='BALANCED'?'good':x.status==='DISCREPANCY'?'bad':'pending'}">${esc(x.status)}</td>
+  </tr>
+ `).join(''):'<tr><td colspan="5" class="empty">No reconciliation records found.</td></tr>';
+}
+
+$('search').addEventListener('input',render);
+
+$('entry').onsubmit=async e=>{
+ e.preventDefault();
+
+ const f=new FormData(e.target);
+ const fields=[
+  'opening_cash','opening_mpesa','opening_bank',
+  'expected_closing_cash','expected_closing_mpesa','expected_closing_bank',
+  'actual_closing_cash','actual_closing_mpesa','actual_closing_bank'
+ ];
+
+ const values={};
+
+ for(const field of fields){
+  const n=Number(f.get(field));
+  if(!Number.isFinite(n)||n<0){
+   $('message').textContent='All balance amounts must be zero or greater.';
+   return;
+  }
+  values[field]=n;
+ }
+
+ const date=f.get('reconciliation_date');
+
+ if(!date){
+  $('message').textContent='Select a reconciliation date.';
+  return;
+ }
+
+ const cashVariance=values.actual_closing_cash-values.expected_closing_cash;
+ const mpesaVariance=values.actual_closing_mpesa-values.expected_closing_mpesa;
+ const bankVariance=values.actual_closing_bank-values.expected_closing_bank;
+
+ const balanced=cashVariance===0&&mpesaVariance===0&&bankVariance===0;
+
+ const payload={
+  organization_id:orgId,
+  reconciliation_date:date,
+  ...values,
+  notes:String(f.get('notes')||'').trim()||null,
+  status:balanced?'BALANCED':'DISCREPANCY',
+  recorded_by:userId
+ };
+
+ $('save').disabled=true;
+ $('message').textContent='Saving reconciliation…';
+
+ const {error}=await db.from('daily_reconciliations').insert(payload);
+
+ $('save').disabled=false;
+
+ if(error){
+  $('message').textContent=error.code==='23505'
+   ?'A reconciliation already exists for this date. Open the existing record rather than creating another.'
+   :'Not saved: '+error.message;
+  return;
+ }
+
+ $('message').textContent=balanced
+  ?'Reconciliation saved. All three channels balance.'
+  :'Reconciliation saved with differences. Review the variances and notes.';
+
+ e.target.reset();
+ e.target.elements.reconciliation_date.value=today();
+ await load();
+};
+
+init().catch(e=>{
+ $('status').textContent='Unable to open module: '+(e.message||e);
+});
+})();
+</script>
+</body>
+  </html>
+  
