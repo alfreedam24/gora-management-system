@@ -203,21 +203,27 @@ async function sessionStart(session) {
   navigate("dashboard");
 }
 
-$("#loginForm")?.addEventListener("submit", async event => {
-  event.preventDefault();
+$("#signin")?.addEventListener("click", async () => {
+  const message = $("#msg");
+  const email = $("#email")?.value.trim();
+  const password = $("#password")?.value;
 
-  const message = $("#loginMsg");
+  if (!email || !password) {
+    message.textContent = "Enter your email and password.";
+    return;
+  }
+
   message.textContent = "Signing in…";
 
   const { error } = await db.auth.signInWithPassword({
-    email: $("#email").value.trim(),
-    password: $("#password").value
+    email,
+    password
   });
 
   if (error) {
     message.textContent = error.message;
   } else {
-    message.textContent = "Login successful. Loading your workspace…";
+    message.textContent = "Login successful. Loading workspace…";
   }
 });
 
