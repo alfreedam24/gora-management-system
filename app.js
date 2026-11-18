@@ -300,8 +300,8 @@ function showDatabaseError(title, error) {
 /* ---------------- DASHBOARD ---------------- */
 
 async function renderDashboard() {
-  $("#pageTitle").textContent = "Dashboard";
-  $("#crumb").textContent = "OVERVIEW";
+   $("#title").textContent = "Dashboard";
+  
 
   $("#content").innerHTML =
     '<div class="loading">Loading your GORA portfolio…</div>';
@@ -402,8 +402,8 @@ async function renderTablePage(page) {
   const module = config[page];
   if (!module) return;
 
-  $("#pageTitle").textContent = module.title;
-  $("#crumb").textContent = "OPERATIONS";
+   $("#title")textContent = module.title;
+  
 
   $("#content").innerHTML =
     `<div class="loading">Loading ${esc(module.title)}…</div>`;
@@ -541,8 +541,8 @@ function formatCell(column, value) {
 /* ---------------- REPORTS ---------------- */
 
 function renderReports() {
-  $("#pageTitle").textContent = "Reports";
-  $("#crumb").textContent = "INSIGHTS";
+   $("#title").textContent = "Reports";
+  
 
   $("#content").innerHTML = `
     <div class="page-head">
