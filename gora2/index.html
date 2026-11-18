@@ -1,0 +1,67 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#123c63">
+<title>GORA 2.0</title>
+<link rel="stylesheet" href="./styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="login" class="login-wrap">
+  <form id="loginForm" class="login-card">
+    <div class="brand-mark">G</div>
+    <h1>GORA <span>2.0</span></h1>
+    <p class="muted">Savings &amp; Credit Management</p>
+    <label>Email<input id="email" type="email" autocomplete="username" required></label>
+    <label>Password<input id="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary">Sign in</button>
+    <p id="loginMsg" class="message"></p>
+  </form>
+</div>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark small">G</div>
+      <div><b>GORA 2.0</b><small>Savings &amp; Credit</small></div>
+    </div>
+    <div class="nav-label">WORKSPACE</div>
+    <nav id="nav">
+      <button data-page="dashboard" class="nav-item active">▦ <span>Dashboard</span></button>
+      <button data-page="members" class="nav-item">♙ <span>Members</span></button>
+      <button data-page="chama_groups" class="nav-item">♧ <span>Chama groups</span></button>
+      <button data-page="savings_accounts" class="nav-item">▤ <span>Savings</span></button>
+      <button data-page="loan_applications" class="nav-item">↗ <span>Loan applications</span></button>
+      <button data-page="loan_accounts" class="nav-item">▣ <span>Loan accounts</span></button>
+      <button data-page="loan_repayments" class="nav-item">↙ <span>Repayments</span></button>
+      <button data-page="financial_approval_requests" class="nav-item">✓ <span>Approvals</span></button>
+      <button data-page="capital_transactions" class="nav-item">◈ <span>Capital</span></button>
+      <button data-page="daily_reconciliations" class="nav-item">≋ <span>Reconciliation</span></button>
+      <button data-page="journal_entries" class="nav-item">▥ <span>Ledger</span></button>
+      <button data-page="reports" class="nav-item">▧ <span>Reports</span></button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div id="userLabel"></div>
+      <button id="logout" class="logout">Sign out ↗</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button id="menuToggle" class="menu-toggle">☰</button>
+      <div><small id="crumb">OVERVIEW</small><h2 id="pageTitle">Dashboard</h2></div>
+      <div class="top-actions"><span class="live-dot"></span><span>Connected</span></div>
+    </header>
+    <section id="content" class="content">
+      <div class="loading">Loading GORA…</div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="./app.js"></script>
+</body>
+</html>
