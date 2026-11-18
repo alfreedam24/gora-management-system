@@ -177,13 +177,13 @@ async function sessionStart(session) {
 
   if (error) {
     console.error("Role lookup failed:", error);
-    $("#loginMsg").textContent = "Unable to verify your GORA account permissions.";
+    $("#msg").textContent = "Unable to verify your GORA account permissions.";
     await db.auth.signOut();
     return;
   }
 
   if (!userRoles || userRoles.length === 0) {
-    $("#loginMsg").textContent =
+    $("#msg").textContent =
       "Your account has no active GORA role. Contact the system administrator.";
     await db.auth.signOut();
     return;
@@ -194,9 +194,9 @@ async function sessionStart(session) {
 
   authReady = true;
 
-  $("#userLabel").textContent =
-    `${currentUser.email} · ${roleCode}`;
-
+  $("#who").textContent = currentUser.email;
+$("#role").textContent = roleCode;
+$("#topWho").textContent = currentUser.email;
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
 
@@ -616,7 +616,7 @@ async function initializeGora() {
 
   if (error) {
     console.error("Session error:", error);
-    $("#loginMsg").textContent = "Unable to check your login session.";
+    $("#msg").textContent = "Unable to check your login session.";
     return;
   }
 
