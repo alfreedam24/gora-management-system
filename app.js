@@ -181,7 +181,7 @@ async function membersPage(c){
 async function applicationsPage(c){
  const [members,products,apps]=await Promise.all([
  safe(db.from('members').select('id,member_number,full_name,phone').order('full_name')),
- safe(db.from('loan_products').select('id,name,minimum_amount,maximum_amount,interest_rate,duration_days,application_fee_rate').eq('active',true).order('name')),
+safe(db.from('loan_products').select('id,product_name,minimum_amount,maximum_amount,interest_rate,duration_min,duration_max,duration_unit,status').eq('status','ACTIVE').order('product_name')),
  safe(db.from('loan_applications').select('id,member_id,product_id,requested_amount,purpose,status,applied_at,proposed_duration_days').order('applied_at',{ascending:false}).limit(100))
  ]);
  const mem=members.data||[],prod=products.data||[];
@@ -189,7 +189,7 @@ async function applicationsPage(c){
  c.innerHTML=`<div class="page-heading"><div><h2>Loan applications</h2><div class="sub">Record a member's application. Submission does not approve or disburse a loan.</div></div></div>
  <div class="panel"><h3>New loan application</h3><form id="applicationForm" class="grid-two">
  <label>Member<select name="member_id" required><option value="">Select member</option>${mem.map(m=>`<option value="${m.id}">${esc(m.full_name)} — ${esc(m.member_number||m.phone||'')}</option>`).join('')}</select></label>
- <label>Loan product<select name="product_id" required><option value="">Select loan type</option>${prod.map(p=>`<option value="${p.id}" data-min="${p.minimum_amount}" data-max="${p.maximum_amount}" data-days="${p.duration_days}" data-rate="${p.interest_rate}">${esc(p.name)} (${cash(p.minimum_amount)}–${cash(p.maximum_amount)})</option>`).join('')}</select></label>
+ <label>Loan product<select name="product_id" required><option value="">Select loan type</option>${prod.map(p=>`<option value="${p.id}" data-min="${p.minimum_amount}" data-max="${p.maximum_amount}" data-rate="${p.interest_rate}">${esc(p.product_name)} (${cash(p.minimum_amount)}–${cash(p.maximum_amount)})</option>`).join('')}</select></label>
  <label>Requested amount (KSh)<input name="requested_amount" type="number" min="1" step="1" required></label>
  <label>Repayment period (days)<input name="proposed_duration_days" type="number" min="1" step="1" required></label>
  <label class="full">Loan purpose<textarea name="purpose" required maxlength="1000"></textarea></label>
