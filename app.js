@@ -8,7 +8,7 @@
 const SUPABASE_URL = "https://ptqenrbebssgfrhcuyuw.supabase.co";
 
 /* Replace this with your Supabase publishable/anon key. */
-const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY_HERE";
+const SUPABASE_ANON_KEY = "sb_publishable_gwZ329lAhcPo87GEMpaqsg_5TI6wPuS";
 
 if (!window.supabase) {
   document.body.innerHTML = "<h2>GORA could not load Supabase. Check your internet connection.</h2>";
