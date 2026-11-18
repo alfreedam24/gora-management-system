@@ -402,7 +402,7 @@ async function renderTablePage(page) {
   const module = config[page];
   if (!module) return;
 
-   $("#title")textContent = module.title;
+$("#title").textContent = module.title;
   
 
   $("#content").innerHTML =
