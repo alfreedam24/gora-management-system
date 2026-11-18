@@ -1,0 +1,40 @@
+
+# GORA 2.0 — Savings & Credit Management
+
+GORA 2.0 is a web-based management application for savings groups, members, loans, savings and financial operations.
+
+## Project structure
+
+```text
+gora-management-system/
+├── README.md
+├── gora2/
+│   ├── index.html
+│   ├── app.js
+│   └── styles.css
+└── supabase/
+    ├── README.md
+    └── migrations/
+        └── 202611180001_gora20_operational_foundation.sql
+```
+
+## Technology
+
+- HTML, CSS and JavaScript
+- Supabase authentication
+- Supabase PostgreSQL database
+- Row Level Security (RLS)
+
+## Setup
+
+1. Configure the Supabase project URL and public publishable/anon key in `gora2/app.js`.
+2. Never put a Supabase service-role or secret key in frontend code.
+3. Review database migrations before applying them.
+4. Configure the required database tables, policies and user roles.
+5. Deploy the `gora2` folder using a static web host.
+
+## Important
+
+This release is an application foundation, not a complete production financial system.
+
+Do not use it to process real member funds until transaction posting, approvals, loan calculations, reconciliation and permissions have been fully implemented and tested.
