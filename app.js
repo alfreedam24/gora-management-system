@@ -214,7 +214,7 @@ async function applicationsPage(c){
     const prodAll = products.data || [];
     const prod = prodAll;
 
-    const prod = prodAll.filter(p => p.organization_id === orgId);
+    
 
     const apps = await safe(db.from('loan_applications')
       .select('id,member_id,loan_product_id,requested_amount,requested_duration,requested_duration_unit,purpose,status,applied_at')
