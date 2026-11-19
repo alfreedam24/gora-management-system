@@ -179,27 +179,41 @@ async function membersPage(c){
  }catch(err){msg.textContent='Could not register member: '+(err.message||err)}};
 }
 
+
 async function applicationsPage(c){
   try {
+    const {data: authData, error: authError} = await db.auth.getUser();
+    if (authError || !authData?.user) {
+      throw new Error('Your login session could not be verified. Please sign in again.');
+    }
+
+    const assignments = await safe(db.from('user_roles')
+      .select('organization_id')
+      .eq('user_id', authData.user.id)
+      .eq('is_active', true));
+
+    const orgIds = [...new Set((assignments.data || []).map(r => r.organization_id).filter(Boolean))];
+    if (orgIds.length !== 1) {
+      throw new Error('Your staff account must have exactly one active GORA organisation assignment.');
+    }
+    const orgId = orgIds[0];
+
     const [members, products] = await Promise.all([
       safe(db.from('members')
         .select('id,organization_id,member_number,full_name,phone')
+        .eq('organization_id', orgId)
         .order('full_name')),
       safe(db.from('loan_products')
         .select('id,organization_id,product_name,minimum_amount,maximum_amount,interest_rate,duration_min,duration_max,duration_unit,status')
+        .eq('organization_id', orgId)
         .eq('status','ACTIVE')
         .order('product_name'))
     ]);
 
     const mem = members.data || [];
     const prodAll = products.data || [];
-    const orgIds = [...new Set(mem.map(m => m.organization_id).filter(Boolean))];
+    const prod = prodAll;
 
-    if (orgIds.length !== 1) {
-      throw new Error('Could not identify one GORA organisation from the member records.');
-    }
-
-    const orgId = orgIds[0];
     const prod = prodAll.filter(p => p.organization_id === orgId);
 
     const apps = await safe(db.from('loan_applications')
