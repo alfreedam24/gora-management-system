@@ -350,25 +350,7 @@ async function applicationsPage(c){
   }
 }
 
- const [members,products,apps]=await Promise.all([
- safe(db.from('members').select('id,member_number,full_name,phone').order('full_name')),
-safe(db.from('loan_products').select('id,product_name,minimum_amount,maximum_amount,interest_rate,duration_min,duration_max,duration_unit,status').eq('status','ACTIVE').order('product_name')),
- safe(db.from('loan_applications').select('id,member_id,product_id,requested_amount,purpose,status,applied_at,proposed_duration_days').order('applied_at',{ascending:false}).limit(100))
- ]);
- const mem=members.data||[],prod=products.data||[];
- const names=Object.fromEntries(mem.map(m=>[m.id,m.full_name]));
- c.innerHTML=`<div class="page-heading"><div><h2>Loan applications</h2><div class="sub">Record a member's application. Submission does not approve or disburse a loan.</div></div></div>
- <div class="panel"><h3>New loan application</h3><form id="applicationForm" class="grid-two">
- <label>Member<select name="member_id" required><option value="">Select member</option>${mem.map(m=>`<option value="${m.id}">${esc(m.full_name)} — ${esc(m.member_number||m.phone||'')}</option>`).join('')}</select></label>
- <label>Loan product<select name="product_id" required><option value="">Select loan type</option>${prod.map(p=>`<option value="${p.id}" data-min="${p.minimum_amount}" data-max="${p.maximum_amount}" data-rate="${p.interest_rate}">${esc(p.product_name)} (${cash(p.minimum_amount)}–${cash(p.maximum_amount)})</option>`).join('')}</select></label>
- <label>Requested amount (KSh)<input name="requested_amount" type="number" min="1" step="1" required></label>
- <label>Repayment period (days)<input name="proposed_duration_days" type="number" min="1" step="1" required></label>
- <label class="full">Loan purpose<textarea name="purpose" required maxlength="1000"></textarea></label>
- <div><button class="primary" type="submit">Submit application</button><p id="applicationMsg" class="message"></p></div></form></div>
- ${table('Application register',['member','requested_amount','purpose','status','applied_at'],(apps.data||[]).map(a=>({member:names[a.member_id]||a.member_id,requested_amount:cash(a.requested_amount),purpose:a.purpose,status:a.status,applied_at:a.applied_at?new Date(a.applied_at).toLocaleString():'—'})))}
- <div class="notice">Applications remain pending for review. Only an authorised GORA administrator may approve or reject them. Product limits and rates must be checked by the administrator before approval.</div>`;
- $('applicationForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),p=prod.find(x=>x.id===f.get('product_id')),amt=Number(f.get('requested_amount')),days=Number(f.get('proposed_duration_days')),msg=$('applicationMsg');if(!p){msg.textContent='Select a loan product.';return}if(amt<Number(p.minimum_amount)||amt>Number(p.maximum_amount)){msg.textContent=`Amount must be between ${cash(p.minimum_amount)} and ${cash(p.maximum_amount)}.`;return}try{await safe(db.from('loan_applications').insert({member_id:f.get('member_id'),product_id:p.id,requested_amount:amt,proposed_interest_rate:p.interest_rate,proposed_duration_days:days,purpose:f.get('purpose').trim(),status:'pending'}));msg.textContent='Application submitted and marked pending. It has not been approved.';await applicationsPage(c)}catch(err){msg.textContent='Could not submit application: '+(err.message||err)}};
-}
+ 
 
 
 async function performancePage(c){
