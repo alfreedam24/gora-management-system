@@ -178,7 +178,178 @@ async function membersPage(c){
  alert('Member registered. Verify their details and membership payment before activating access.');await membersPage(c);
  }catch(err){msg.textContent='Could not register member: '+(err.message||err)}};
 }
+
 async function applicationsPage(c){
+  try {
+    const [members, products] = await Promise.all([
+      safe(db.from('members')
+        .select('id,organization_id,member_number,full_name,phone')
+        .order('full_name')),
+      safe(db.from('loan_products')
+        .select('id,organization_id,product_name,minimum_amount,maximum_amount,interest_rate,duration_min,duration_max,duration_unit,status')
+        .eq('status','ACTIVE')
+        .order('product_name'))
+    ]);
+
+    const mem = members.data || [];
+    const prodAll = products.data || [];
+    const orgIds = [...new Set(mem.map(m => m.organization_id).filter(Boolean))];
+
+    if (orgIds.length !== 1) {
+      throw new Error('Could not identify one GORA organisation from the member records.');
+    }
+
+    const orgId = orgIds[0];
+    const prod = prodAll.filter(p => p.organization_id === orgId);
+
+    const apps = await safe(db.from('loan_applications')
+      .select('id,member_id,loan_product_id,requested_amount,requested_duration,requested_duration_unit,purpose,status,applied_at')
+      .eq('organization_id',orgId)
+      .order('applied_at',{ascending:false})
+      .limit(100));
+
+    const names = Object.fromEntries(mem.map(m => [m.id,m.full_name]));
+
+    c.innerHTML = `
+      <div class="page-heading">
+        <div>
+          <h2>Loan applications</h2>
+          <div class="sub">Record a member's application. Submission does not approve or disburse a loan.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>New loan application</h3>
+        <form id="applicationForm" class="grid-two">
+          <label>Member
+            <select name="member_id" required>
+              <option value="">Select member</option>
+              ${mem.map(m => `<option value="${m.id}">${esc(m.full_name)} — ${esc(m.member_number||m.phone||'')}</option>`).join('')}
+            </select>
+          </label>
+
+          <label>Loan product
+            <select name="loan_product_id" id="applicationProduct" required>
+              <option value="">Select loan type</option>
+              ${prod.map(p => `<option value="${p.id}" data-min="${p.minimum_amount}" data-max="${p.maximum_amount}" data-duration-min="${p.duration_min}" data-duration-max="${p.duration_max}" data-unit="${p.duration_unit}">${esc(p.product_name)} (${cash(p.minimum_amount)}–${cash(p.maximum_amount)})</option>`).join('')}
+            </select>
+          </label>
+
+          <label>Requested amount (KSh)
+            <input name="requested_amount" type="number" min="1" step="1" required>
+          </label>
+
+          <label>Repayment period
+            <input name="requested_duration" type="number" min="1" step="1" required>
+          </label>
+
+          <label>Duration unit
+            <select name="requested_duration_unit" id="applicationDurationUnit" required>
+              <option value="DAYS">Days</option>
+              <option value="WEEKS">Weeks</option>
+              <option value="MONTHS">Months</option>
+            </select>
+          </label>
+
+          <label class="full">Loan purpose
+            <textarea name="purpose" required maxlength="1000"></textarea>
+          </label>
+
+          <div>
+            <button class="primary" type="submit">Submit application</button>
+            <p id="applicationMsg" class="message"></p>
+          </div>
+        </form>
+      </div>
+
+      ${table('Application register',['member','requested_amount','purpose','status','applied_at'],
+        (apps.data||[]).map(a=>({
+          member:names[a.member_id]||a.member_id,
+          requested_amount:cash(a.requested_amount),
+          purpose:a.purpose,
+          status:a.status,
+          applied_at:a.applied_at?new Date(a.applied_at).toLocaleString():'—'
+        }))
+      )}
+
+      <div class="notice">
+        Applications remain pending until reviewed by an authorised GORA administrator.
+      </div>`;
+
+    const productSelect = $('applicationProduct');
+    const durationUnit = $('applicationDurationUnit');
+
+    productSelect.onchange = () => {
+      const option = productSelect.selectedOptions[0];
+      if (option && option.dataset.unit) {
+        durationUnit.value = option.dataset.unit;
+      }
+    };
+
+    $('applicationForm').onsubmit = async e => {
+      e.preventDefault();
+
+      const f = new FormData(e.target);
+      const member = mem.find(x => x.id === f.get('member_id'));
+      const p = prod.find(x => x.id === f.get('loan_product_id'));
+      const amt = Number(f.get('requested_amount'));
+      const duration = Number(f.get('requested_duration'));
+      const unit = f.get('requested_duration_unit');
+      const msg = $('applicationMsg');
+
+      if (!member || !p) {
+        msg.textContent = 'Select a valid member and loan product.';
+        return;
+      }
+
+      if (member.organization_id !== orgId || p.organization_id !== orgId) {
+        msg.textContent = 'Member and loan product must belong to the same GORA organisation.';
+        return;
+      }
+
+      if (amt < Number(p.minimum_amount) || amt > Number(p.maximum_amount)) {
+        msg.textContent = `Amount must be between ${cash(p.minimum_amount)} and ${cash(p.maximum_amount)}.`;
+        return;
+      }
+
+      if (unit !== p.duration_unit ||
+          duration < Number(p.duration_min) ||
+          duration > Number(p.duration_max)) {
+        msg.textContent = `Duration must be ${p.duration_min}–${p.duration_max} ${p.duration_unit.toLowerCase()}.`;
+        return;
+      }
+
+      try {
+        const {data: authData,error:authError} = await db.auth.getUser();
+        if (authError || !authData.user) throw new Error('Please sign in again.');
+
+        const applicationNumber = 'GORA-' + Date.now();
+
+        await safe(db.from('loan_applications').insert({
+          organization_id: orgId,
+          application_number: applicationNumber,
+          loan_product_id: p.id,
+          borrower_type: 'MEMBER',
+          member_id: member.id,
+          requested_amount: amt,
+          requested_duration: duration,
+          requested_duration_unit: unit,
+          purpose: f.get('purpose').trim(),
+          applied_by: authData.user.id,
+          status: 'PENDING'
+        }));
+
+        msg.textContent = 'Application submitted and marked pending. It has not been approved.';
+        await applicationsPage(c);
+      } catch(err) {
+        msg.textContent = 'Could not submit application: ' + (err.message || err);
+      }
+    };
+  } catch(err) {
+    c.innerHTML = `<div class="panel"><h3>Could not load Applications</h3><p>${esc(err.message||err)}</p></div>`;
+  }
+}
+
  const [members,products,apps]=await Promise.all([
  safe(db.from('members').select('id,member_number,full_name,phone').order('full_name')),
 safe(db.from('loan_products').select('id,product_name,minimum_amount,maximum_amount,interest_rate,duration_min,duration_max,duration_unit,status').eq('status','ACTIVE').order('product_name')),
