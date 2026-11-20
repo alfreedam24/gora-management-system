@@ -180,85 +180,166 @@ async function membersPage(c){
 }
 
 
-async function applicationsPage(c){
+
+async function applicationsPage(c) {
   try {
-    const {data: authData, error: authError} = await db.auth.getUser();
+    const { data: authData, error: authError } = await db.auth.getUser();
+
     if (authError || !authData?.user) {
-      throw new Error('Your login session could not be verified. Please sign in again.');
+      throw new Error('Please sign in again.');
     }
 
-    const assignments = await safe(db.from('user_roles')
-      .select('organization_id')
-      .eq('user_id', authData.user.id)
-      .eq('is_active', true));
+    const user = authData.user;
 
-    const orgIds = [...new Set((assignments.data || []).map(r => r.organization_id).filter(Boolean))];
+    const assignments = await safe(
+      db.from('user_roles')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+    );
+
+    const orgIds = [...new Set(
+      (assignments.data || [])
+        .map(x => x.organization_id)
+        .filter(Boolean)
+    )];
+
     if (orgIds.length !== 1) {
-      throw new Error('Your staff account must have exactly one active GORA organisation assignment.');
+      throw new Error(
+        'Your staff account must have exactly one active organisation assignment.'
+      );
     }
+
     const orgId = orgIds[0];
 
-    const [members, products] = await Promise.all([
+    const [membersResult, individualsResult, productsResult,
+      membershipsResult, groupsResult, appsResult] = await Promise.all([
       safe(db.from('members')
-        .select('id,organization_id,member_number,full_name,phone')
+        .select('id,organization_id,member_number,full_name,phone,status')
         .eq('organization_id', orgId)
+        .eq('status', 'ACTIVE')
         .order('full_name')),
-      safe(db.from('loan_products')
-        .select('id,organization_id,product_name,minimum_amount,maximum_amount,interest_rate,duration_min,duration_max,duration_unit,status')
+
+      safe(db.from('individual_borrowers')
+        .select('id,organization_id,borrower_number,full_name,phone,status')
         .eq('organization_id', orgId)
-        .eq('status','ACTIVE')
-        .order('product_name'))
+        .eq('status', 'ACTIVE')
+        .order('full_name')),
+
+      safe(db.from('loan_products')
+        .select('id,organization_id,product_name,product_code,application_type,minimum_amount,maximum_amount,interest_rate,duration_min,duration_max,duration_unit,processing_fee_type,processing_fee_value,status')
+        .eq('organization_id', orgId)
+        .eq('status', 'ACTIVE')
+        .order('product_name')),
+
+      safe(db.from('chama_memberships')
+        .select('id,group_id,member_id,status')
+        .eq('organization_id', orgId)
+        .eq('status', 'ACTIVE')),
+
+      safe(db.from('chama_groups')
+        .select('id,group_name,status')
+        .eq('organization_id', orgId)
+        .eq('status', 'ACTIVE')),
+
+      safe(db.from('loan_applications')
+        .select('id,application_number,borrower_type,member_id,individual_borrower_id,loan_product_id,requested_amount,requested_duration,requested_duration_unit,purpose,status,applied_at')
+        .eq('organization_id', orgId)
+        .order('applied_at', { ascending: false })
+        .limit(100))
     ]);
 
-    const mem = members.data || [];
-    const prodAll = products.data || [];
-    const prod = prodAll;
+    const members = membersResult.data || [];
+    const individuals = individualsResult.data || [];
+    const products = productsResult.data || [];
+    const memberships = membershipsResult.data || [];
+    const groups = groupsResult.data || [];
+    const applications = appsResult.data || [];
 
-    
+    const activeGroupIds = new Set(
+      groups.map(g => g.id)
+    );
 
-    const apps = await safe(db.from('loan_applications')
-      .select('id,member_id,loan_product_id,requested_amount,requested_duration,requested_duration_unit,purpose,status,applied_at')
-      .eq('organization_id',orgId)
-      .order('applied_at',{ascending:false})
-      .limit(100));
+    const activeMemberships = memberships.filter(
+      m => activeGroupIds.has(m.group_id)
+    );
 
-    const names = Object.fromEntries(mem.map(m => [m.id,m.full_name]));
+    const memberNames = Object.fromEntries(
+      members.map(m => [m.id, m.full_name])
+    );
+
+    const individualNames = Object.fromEntries(
+      individuals.map(m => [m.id, m.full_name])
+    );
+
+    const productNames = Object.fromEntries(
+      products.map(p => [p.id, p.product_name])
+    );
+
+    const fullAssessmentTypes = [
+      'BUSINESS',
+      'SCHOOL_FEES',
+      'HOSPITAL'
+    ];
 
     c.innerHTML = `
       <div class="page-heading">
         <div>
           <h2>Loan applications</h2>
-          <div class="sub">Record a member's application. Submission does not approve or disburse a loan.</div>
+          <div class="sub">
+            Register applications, record assessment information,
+            guarantor consent and fee payments.
+          </div>
         </div>
       </div>
 
       <div class="panel">
         <h3>New loan application</h3>
+
         <form id="applicationForm" class="grid-two">
-          <label>Member
-            <select name="member_id" required>
+
+          <label>Borrower category
+            <select name="borrower_type" id="borrowerType" required>
+              <option value="MEMBER">GORA chama member</option>
+              <option value="INDIVIDUAL">Individual borrower</option>
+            </select>
+          </label>
+
+          <label id="borrowerLabel">Select member
+            <select name="member_id" id="borrowerSelect" required>
               <option value="">Select member</option>
-              ${mem.map(m => `<option value="${m.id}">${esc(m.full_name)} — ${esc(m.member_number||m.phone||'')}</option>`).join('')}
+              ${members.map(m => `
+                <option value="${m.id}">
+                  ${esc(m.full_name)} — ${esc(m.member_number || m.phone || '')}
+                </option>
+              `).join('')}
             </select>
           </label>
 
           <label>Loan product
             <select name="loan_product_id" id="applicationProduct" required>
-              <option value="">Select loan type</option>
-              ${prod.map(p => `<option value="${p.id}" data-min="${p.minimum_amount}" data-max="${p.maximum_amount}" data-duration-min="${p.duration_min}" data-duration-max="${p.duration_max}" data-unit="${p.duration_unit}">${esc(p.product_name)} (${cash(p.minimum_amount)}–${cash(p.maximum_amount)})</option>`).join('')}
+              <option value="">Select loan product</option>
+              ${products.map(p => `
+                <option value="${p.id}">
+                  ${esc(p.product_name)} — ${esc(p.application_type)}
+                  (${cash(p.minimum_amount)}–${cash(p.maximum_amount)})
+                </option>
+              `).join('')}
             </select>
           </label>
 
           <label>Requested amount (KSh)
-            <input name="requested_amount" type="number" min="1" step="1" required>
+            <input name="requested_amount" type="number"
+              min="1" step="1" required>
           </label>
 
-          <label>Repayment period
-            <input name="requested_duration" type="number" min="1" step="1" required>
+          <label>Repayment duration
+            <input name="requested_duration" type="number"
+              min="1" step="1" required>
           </label>
 
           <label>Duration unit
-            <select name="requested_duration_unit" id="applicationDurationUnit" required>
+            <select name="requested_duration_unit" id="durationUnit" required>
               <option value="DAYS">Days</option>
               <option value="WEEKS">Weeks</option>
               <option value="MONTHS">Months</option>
@@ -269,103 +350,456 @@ async function applicationsPage(c){
             <textarea name="purpose" required maxlength="1000"></textarea>
           </label>
 
-          <div>
-            <button class="primary" type="submit">Submit application</button>
+          <div id="assessmentSection" class="full hidden">
+            <h3>Financial assessment</h3>
+
+            <label>Monthly income (KSh)
+              <input name="assessment_monthly_income"
+                type="number" min="0" step="0.01">
+            </label>
+
+            <label>Monthly expenses (KSh)
+              <input name="assessment_monthly_expenses"
+                type="number" min="0" step="0.01">
+            </label>
+
+            <label>Existing monthly loan repayments (KSh)
+              <input name="assessment_existing_monthly_debt"
+                type="number" min="0" step="0.01">
+            </label>
+
+            <label>Assessment notes
+              <textarea name="assessment_notes"
+                maxlength="2000"></textarea>
+            </label>
+          </div>
+
+          <div id="guarantorSection" class="full hidden">
+            <h3>Guarantor details</h3>
+
+            <label>Select active GORA member
+              <select name="guarantor_member_id" id="guarantorSelect">
+                <option value="">Select guarantor</option>
+                ${members.map(m => `
+                  <option value="${m.id}">
+                    ${esc(m.full_name)} — ${esc(m.member_number || m.phone || '')}
+                  </option>
+                `).join('')}
+              </select>
+            </label>
+
+            <label>
+              <input type="checkbox" name="guarantorConsent"
+                id="guarantorConsent">
+              I confirm that the selected guarantor has given consent.
+            </label>
+
+            <p class="hint">
+              The guarantor must be an active GORA chama member.
+              Chama borrowers must use a guarantor from their own chama.
+            </p>
+          </div>
+
+          <div class="full">
+            <h3>Application fee payment</h3>
+
+            <p class="hint">
+              Enter the amount actually received. The system does not
+              calculate the fee or automatically verify payment.
+            </p>
+
+            <label>Amount received (KSh)
+              <input name="fee_amount" type="number"
+                min="0" step="0.01" required>
+            </label>
+
+            <label>Payment method
+              <select name="fee_payment_method" required>
+                <option value="">Select payment method</option>
+                <option value="CASH">Cash</option>
+                <option value="MPESA">M-Pesa</option>
+                <option value="BANK">Bank</option>
+              </select>
+            </label>
+
+            <label>Payment reference
+              <input name="fee_reference" maxlength="100"
+                placeholder="M-Pesa code or receipt number">
+            </label>
+          </div>
+
+          <div class="full">
+            <button class="primary" type="submit">
+              Submit loan application
+            </button>
             <p id="applicationMsg" class="message"></p>
           </div>
+
         </form>
       </div>
 
-      ${table('Application register',['member','requested_amount','purpose','status','applied_at'],
-        (apps.data||[]).map(a=>({
-          member:names[a.member_id]||a.member_id,
-          requested_amount:cash(a.requested_amount),
-          purpose:a.purpose,
-          status:a.status,
-          applied_at:a.applied_at?new Date(a.applied_at).toLocaleString():'—'
-        }))
-      )}
+      <div class="panel">
+        <h3>Application register</h3>
+        ${table(
+          'Recent applications',
+          ['application_number','borrower','product','requested_amount','status','applied_at'],
+          applications.map(a => ({
+            application_number: a.application_number,
+            borrower: a.borrower_type === 'INDIVIDUAL'
+              ? individualNames[a.individual_borrower_id] || 'Individual'
+              : memberNames[a.member_id] || 'Member',
+            product: productNames[a.loan_product_id] || '—',
+            requested_amount: cash(a.requested_amount),
+            status: a.status,
+            applied_at: a.applied_at
+              ? new Date(a.applied_at).toLocaleString()
+              : '—'
+          }))
+        )}
+      </div>
 
       <div class="notice">
-        Applications remain pending until reviewed by an authorised GORA administrator.
-      </div>`;
+        Applications are submitted as PENDING. Fee verification,
+        assessment review, approval and disbursement remain separate
+        authorised actions.
+      </div>
+    `;
 
+    const form = $('applicationForm');
+    const borrowerType = $('borrowerType');
+    const borrowerSelect = $('borrowerSelect');
+    const borrowerLabel = $('borrowerLabel');
     const productSelect = $('applicationProduct');
-    const durationUnit = $('applicationDurationUnit');
+    const durationUnit = $('durationUnit');
+    const assessmentSection = $('assessmentSection');
+    const guarantorSection = $('guarantorSection');
+    const guarantorSelect = $('guarantorSelect');
+    const consent = $('guarantorConsent');
 
-    productSelect.onchange = () => {
-      const option = productSelect.selectedOptions[0];
-      if (option && option.dataset.unit) {
-        durationUnit.value = option.dataset.unit;
+    function updateBorrowerOptions() {
+      const individual = borrowerType.value === 'INDIVIDUAL';
+      const list = individual ? individuals : members;
+
+      borrowerLabel.innerHTML = `
+        <label>${individual ? 'Select individual borrower' : 'Select member'}
+          <select name="${individual ? 'individual_borrower_id' : 'member_id'}"
+            id="borrowerSelect" required>
+            <option value="">Select borrower</option>
+            ${list.map(m => `
+              <option value="${m.id}">
+                ${esc(m.full_name)} —
+                ${esc(m.borrower_number || m.member_number || m.phone || '')}
+              </option>
+            `).join('')}
+          </select>
+        </label>
+      `;
+
+      borrowerSelect = $('borrowerSelect');
+      updateGuarantors();
+      updateProductRequirements();
+    }
+
+    function updateGuarantors() {
+      const individual = borrowerType.value === 'INDIVIDUAL';
+      const borrowerId = borrowerSelect.value;
+
+      let eligible = members.filter(m => {
+        if (m.id === borrowerId) return false;
+
+        const memberGroups = activeMemberships
+          .filter(x => x.member_id === m.id)
+          .map(x => x.group_id);
+
+        return memberGroups.length > 0;
+      });
+
+      if (!individual && borrowerId) {
+        const borrowerGroups = activeMemberships
+          .filter(x => x.member_id === borrowerId)
+          .map(x => x.group_id);
+
+        eligible = eligible.filter(m => {
+          const guarantorGroups = activeMemberships
+            .filter(x => x.member_id === m.id)
+            .map(x => x.group_id);
+
+          return guarantorGroups.some(id => borrowerGroups.includes(id));
+        });
       }
+
+      guarantorSelect.innerHTML = `
+        <option value="">Select guarantor</option>
+        ${eligible.map(m => `
+          <option value="${m.id}">
+            ${esc(m.full_name)} — ${esc(m.member_number || m.phone || '')}
+          </option>
+        `).join('')}
+      `;
+    }
+
+    function updateProductRequirements() {
+      const p = products.find(x => x.id === productSelect.value);
+      const individual = borrowerType.value === 'INDIVIDUAL';
+
+      const needsFullAssessment = individual ||
+        (p && fullAssessmentTypes.includes(p.application_type));
+
+      assessmentSection.classList.toggle(
+        'hidden',
+        !needsFullAssessment
+      );
+
+      guarantorSection.classList.toggle(
+        'hidden',
+        !needsFullAssessment
+      );
+
+      const assessmentFields = [
+        'assessment_monthly_income',
+        'assessment_monthly_expenses',
+        'assessment_existing_monthly_debt'
+      ];
+
+      assessmentFields.forEach(name => {
+        const field = form.elements[name];
+        if (field) field.required = needsFullAssessment;
+      });
+
+      guarantorSelect.required = needsFullAssessment;
+      consent.required = needsFullAssessment;
+    }
+
+    borrowerType.onchange = updateBorrowerOptions;
+    borrowerSelect.onchange = updateGuarantors;
+    productSelect.onchange = () => {
+      const p = products.find(x => x.id === productSelect.value);
+      if (p) durationUnit.value = p.duration_unit;
+      updateProductRequirements();
     };
 
-    $('applicationForm').onsubmit = async e => {
+    updateBorrowerOptions();
+    updateProductRequirements();
+
+    form.onsubmit = async e => {
       e.preventDefault();
 
-      const f = new FormData(e.target);
-      const member = mem.find(x => x.id === f.get('member_id'));
-      const p = prod.find(x => x.id === f.get('loan_product_id'));
-      const amt = Number(f.get('requested_amount'));
-      const duration = Number(f.get('requested_duration'));
-      const unit = f.get('requested_duration_unit');
       const msg = $('applicationMsg');
-
-      if (!member || !p) {
-        msg.textContent = 'Select a valid member and loan product.';
-        return;
-      }
-
-      if (member.organization_id !== orgId || p.organization_id !== orgId) {
-        msg.textContent = 'Member and loan product must belong to the same GORA organisation.';
-        return;
-      }
-
-      if (amt < Number(p.minimum_amount) || amt > Number(p.maximum_amount)) {
-        msg.textContent = `Amount must be between ${cash(p.minimum_amount)} and ${cash(p.maximum_amount)}.`;
-        return;
-      }
-
-      if (unit !== p.duration_unit ||
-          duration < Number(p.duration_min) ||
-          duration > Number(p.duration_max)) {
-        msg.textContent = `Duration must be ${p.duration_min}–${p.duration_max} ${p.duration_unit.toLowerCase()}.`;
-        return;
-      }
+      msg.textContent = 'Submitting application…';
 
       try {
-        const {data: authData,error:authError} = await db.auth.getUser();
-        if (authError || !authData.user) throw new Error('Please sign in again.');
+        const f = new FormData(form);
+        const type = f.get('borrower_type');
+        const individual = type === 'INDIVIDUAL';
+
+        const borrowerId = individual
+          ? f.get('individual_borrower_id')
+          : f.get('member_id');
+
+        const borrower = individual
+          ? individuals.find(x => x.id === borrowerId)
+          : members.find(x => x.id === borrowerId);
+
+        const product = products.find(
+          x => x.id === f.get('loan_product_id')
+        );
+
+        const amount = Number(f.get('requested_amount'));
+        const duration = Number(f.get('requested_duration'));
+        const unit = f.get('requested_duration_unit');
+        const feeAmount = Number(f.get('fee_amount'));
+
+        if (!borrower || !product) {
+          throw new Error('Select a valid borrower and loan product.');
+        }
+
+        if (borrower.organization_id !== orgId ||
+            product.organization_id !== orgId) {
+          throw new Error('Borrower and product must belong to this organisation.');
+        }
+
+        if (amount < Number(product.minimum_amount) ||
+            amount > Number(product.maximum_amount)) {
+          throw new Error(
+            `Amount must be between ${cash(product.minimum_amount)} and ${cash(product.maximum_amount)}.`
+          );
+        }
+
+        if (unit !== product.duration_unit ||
+            duration < Number(product.duration_min) ||
+            duration > Number(product.duration_max)) {
+          throw new Error(
+            `Duration must be ${product.duration_min}–${product.duration_max} ${product.duration_unit}.`
+          );
+        }
+
+        if (!Number.isFinite(feeAmount) || feeAmount <= 0) {
+          throw new Error('Enter the actual application fee payment received.');
+        }
+
+        const paymentMethod = f.get('fee_payment_method');
+        if (!paymentMethod) {
+          throw new Error('Select the fee payment method.');
+        }
+
+        const needsFullAssessment = individual ||
+          fullAssessmentTypes.includes(product.application_type);
+
+        let guarantorId = null;
+
+        if (needsFullAssessment) {
+          const income = Number(f.get('assessment_monthly_income'));
+          const expenses = Number(f.get('assessment_monthly_expenses'));
+          const debt = Number(f.get('assessment_existing_monthly_debt'));
+
+          if ([income, expenses, debt].some(
+            x => !Number.isFinite(x) || x < 0
+          )) {
+            throw new Error('Enter valid non-negative assessment figures.');
+          }
+
+          guarantorId = f.get('guarantor_member_id');
+
+          if (!guarantorId || guarantorId === borrowerId) {
+            throw new Error('Select a valid guarantor. Self-guaranteeing is not allowed.');
+          }
+
+          if (!consent.checked) {
+            throw new Error('Confirm that the guarantor has given consent.');
+          }
+
+          const guarantor = members.find(x => x.id === guarantorId);
+
+          if (!guarantor) {
+            throw new Error('The selected guarantor is not an active GORA member.');
+          }
+
+          const guarantorMembership = activeMemberships.filter(
+            x => x.member_id === guarantorId
+          );
+
+          if (!guarantorMembership.length) {
+            throw new Error('The guarantor must have active chama membership.');
+          }
+
+          if (!individual) {
+            const borrowerGroups = activeMemberships
+              .filter(x => x.member_id === borrowerId)
+              .map(x => x.group_id);
+
+            if (!guarantorMembership.some(
+              x => borrowerGroups.includes(x.group_id)
+            )) {
+              throw new Error('A chama borrower must use a guarantor from the same chama.');
+            }
+          }
+        }
 
         const applicationNumber = 'GORA-' + Date.now();
 
-        await safe(db.from('loan_applications').insert({
+        const applicationPayload = {
           organization_id: orgId,
           application_number: applicationNumber,
-          loan_product_id: p.id,
-          borrower_type: 'MEMBER',
-          member_id: member.id,
-          requested_amount: amt,
+          loan_product_id: product.id,
+          borrower_type: type,
+          member_id: individual ? null : borrowerId,
+          individual_borrower_id: individual ? borrowerId : null,
+          requested_amount: amount,
           requested_duration: duration,
           requested_duration_unit: unit,
-          purpose: f.get('purpose').trim(),
-          applied_by: authData.user.id,
+          purpose: String(f.get('purpose') || '').trim(),
+          applied_by: user.id,
           status: 'PENDING'
-        }));
+        };
 
-        msg.textContent = 'Application submitted and marked pending. It has not been approved.';
+        if (needsFullAssessment) {
+          applicationPayload.assessment_monthly_income =
+            Number(f.get('assessment_monthly_income'));
+
+          applicationPayload.assessment_monthly_expenses =
+            Number(f.get('assessment_monthly_expenses'));
+
+          applicationPayload.assessment_existing_monthly_debt =
+            Number(f.get('assessment_existing_monthly_debt'));
+
+          applicationPayload.assessment_notes =
+            String(f.get('assessment_notes') || '').trim();
+
+          applicationPayload.assessment_completed_by = user.id;
+          applicationPayload.assessment_completed_at = new Date().toISOString();
+        }
+
+        const inserted = await safe(
+          db.from('loan_applications')
+            .insert(applicationPayload)
+            .select('id')
+            .single()
+        );
+
+        const applicationId = inserted.data.id;
+
+        try {
+          await safe(
+            db.from('loan_application_fee_payments').insert({
+              organization_id: orgId,
+              application_id: applicationId,
+              amount: feeAmount,
+              payment_method: paymentMethod,
+              reference_number: String(f.get('fee_reference') || '').trim() || null,
+              status: 'PENDING',
+              recorded_by: user.id
+            })
+          );
+        } catch (feeError) {
+          throw new Error(
+            'Application was created, but the fee receipt could not be recorded. ' +
+            'Application reference: ' + applicationNumber +
+            '. Fee error: ' + (feeError.message || feeError)
+          );
+        }
+
+        if (guarantorId) {
+          try {
+            await safe(
+              db.from('loan_application_guarantors').insert({
+                organization_id: orgId,
+                application_id: applicationId,
+                guarantor_member_id: guarantorId,
+                consent_status: 'CONSENTED',
+                consent_recorded_by: user.id,
+                consent_recorded_at: new Date().toISOString()
+              })
+            );
+          } catch (guarantorError) {
+            throw new Error(
+              'Application and fee receipt were recorded, but guarantor recording failed. ' +
+              'Application reference: ' + applicationNumber +
+              '. Guarantor error: ' + (guarantorError.message || guarantorError)
+            );
+          }
+        }
+
+        msg.textContent =
+          'Application ' + applicationNumber +
+          ' submitted as PENDING. Fee verification and loan approval are still required.';
+
         await applicationsPage(c);
-      } catch(err) {
-        msg.textContent = 'Could not submit application: ' + (err.message || err);
+
+      } catch (err) {
+        msg.textContent = 'Could not complete submission: ' +
+          (err.message || err);
       }
     };
-  } catch(err) {
-    c.innerHTML = `<div class="panel"><h3>Could not load Applications</h3><p>${esc(err.message||err)}</p></div>`;
+
+  } catch (err) {
+    c.innerHTML = `
+      <div class="panel">
+        <h3>Could not load loan applications</h3>
+        <p>${esc(err.message || err)}</p>
+      </div>
+    `;
   }
 }
-
- 
-
 
 async function performancePage(c){
  const [groups,links,savings,repays,loans]=await Promise.all([
