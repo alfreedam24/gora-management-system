@@ -30,22 +30,34 @@
 <div class="nav-label">CREDIT</div>
 <button class="nav-item" data-page="Applications"><span>▤</span>Loan applications</button>
 <button class="nav-item" data-page="Loans"><span>▣</span>Active loans</button>
-<button class="nav-item" data-page="Installments"><span>◷</span>Installments &amp; due dates</button>
-<button class="nav-item" data-page="Arrears"><span>⚠</span>Loan arrears</button>
-<button class="nav-item" data-page="Repayments"><span>↙</span>Collections &amp; repayments</button>
 <div class="nav-label">FINANCE</div>
-  <button class="nav-item" type="button"
-  onclick="window.location.href='finance-module-v2.html'">
-  <span>💼</span>Finance Management
-  </button>
-<button class="nav-item" data-page="Savings"><span>◈</span>Savings ledger</button>
-  <button class="nav-item" data-page="Capital Management"><span>▣</span>Capital management</button>
-  <button class="nav-item" data-page="Daily Reconciliation"><span>✓</span>Daily reconciliation</button>
-<button class="nav-item" data-page="Cashbook"><span>▧</span>Cashbook</button>
-<button class="nav-item" data-page="Petty Cash"><span>◉</span>Petty cash</button>
-<button class="nav-item" data-page="Expenses"><span>−</span>Expenses</button>
-  <button class="nav-item" type="button" onclick="window.location.href='finance-performance-v2.html'">
-  <span>📊</span>Financial Performance
+
+<button class="nav-item" type="button"
+  id="financeToggle"
+  aria-expanded="false"
+  onclick="
+    const menu=document.getElementById('financeSubmenu');
+    menu.hidden=!menu.hidden;
+    this.setAttribute('aria-expanded',String(!menu.hidden));
+  ">
+  <span>💼</span>
+  Finance Management
+  <span style="margin-left:auto">⌄</span>
+</button>
+
+<div id="financeSubmenu" hidden style="padding-left:14px">
+
+  <button class="nav-item" data-page="Finance Overview">Overview</button>
+  <button class="nav-item" data-page="Transactions">Transactions</button>
+  <button class="nav-item" data-page="Income">Income</button>
+  <button class="nav-item" data-page="Expenses">Expenses</button>
+  <button class="nav-item" data-page="Petty Cash">Petty Cash</button>
+  <button class="nav-item" data-page="Capital Management">Capital Management</button>
+  <button class="nav-item" data-page="Daily Reconciliation">Daily Reconciliation</button>
+  <button class="nav-item" data-page="Accounting">Accounting</button>
+  <button class="nav-item" data-page="Financial Reports">Financial Reports</button>
+
+</div>
   </button>
 <div class="nav-label">MANAGEMENT</div>
 <button class="nav-item" data-page="Performance"><span>▥</span>Performance insights</button>
