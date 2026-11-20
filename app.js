@@ -467,7 +467,7 @@ async function applicationsPage(c) {
 
     const form = $('applicationForm');
     const borrowerType = $('borrowerType');
-    const borrowerSelect = $('borrowerSelect');
+    let borrowerSelect = $('borrowerSelect');
     const borrowerLabel = $('borrowerLabel');
     const productSelect = $('applicationProduct');
     const durationUnit = $('durationUnit');
