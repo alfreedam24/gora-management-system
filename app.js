@@ -55,7 +55,7 @@ $('nav').addEventListener('click',e=>{
   if(page==='Members'){location.href='members-v2.html';return}
   if(page==='Approvals'){location.href='member-approvals-v2.html';return}
   if(page==='Chamas'){location.href='chama-management-v2.html';return}
-
+if(page==='Capital Management'){location.href='capital-management-v2.html';return}
   document.querySelectorAll('#nav .nav-item').forEach(x=>{
     x.classList.toggle('active',x===b);
   });
