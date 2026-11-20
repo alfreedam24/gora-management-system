@@ -124,6 +124,19 @@ function render(){
  $('history').innerHTML=shown.length?shown.map(x=>{const plus=['capital_contribution','owner_loan_in'].includes(x.transaction_type),reversed=x.status==='REVERSED';return '<tr><td>'+esc(x.transaction_date)+'</td><td>'+esc(labels[x.transaction_type]||x.transaction_type)+'</td><td>'+esc(x.description)+'</td><td>'+esc(x.payment_method)+'</td><td>'+esc(x.reference||'—')+'</td><td class="'+(plus?'plus':'minus')+'">'+(plus?'+':'−')+money(x.amount)+'</td><td>'+ (reversed?'REVERSED':'POSTED')+(reversed&&x.reversal_reason?'<small>'+esc(x.reversal_reason)+'</small>':'')+'</td><td>'+(reversed?'—':'<button type="button" data-reverse="'+esc(x.id)+'">Reverse</button>')+'</td></tr>'}).join(''):'<tr><td colspan="8" class="empty">No capital transactions recorded yet.</td></tr>';
 }
 $('search').addEventListener('input',render);
+$('history').addEventListener('click',async e=>{
+ const btn=e.target.closest('[data-reverse]');
+ if(!btn)return;
+ const reason=prompt('Enter the reason for reversing this transaction (minimum 5 characters):');
+ if(reason===null)return;
+ if(reason.trim().length<5){alert('Please provide a reason of at least 5 characters.');return}
+ if(!confirm('Are you sure you want to reverse this transaction?'))return;
+ btn.disabled=true;
+ const {error}=await db.rpc('reverse_capital_transaction',{p_transaction_id:btn.dataset.reverse,p_reason:reason.trim()});
+ if(error){alert('Reversal failed: '+error.message);btn.disabled=false;return}
+ alert('Transaction reversed successfully.');
+ await load();
+});      
 $('entry').onsubmit=async e=>{
  e.preventDefault();const f=new FormData(e.target),type=f.get('transaction_type'),amount=Number(f.get('amount'));
  if(!Number.isFinite(amount)||amount<=0){$('message').textContent='Enter an amount greater than zero.';return}
