@@ -112,7 +112,7 @@ async function init(){
 async function load(){
  if(!db||!orgId)return;
  $('history').innerHTML='<tr><td colspan="6" class="empty">Loading…</td></tr>';
- const {data,error}=await db.from('capital_transactions').select('id,transaction_type,amount,transaction_date,payment_method,reference,description,created_at').eq('organization_id',orgId).order('transaction_date',{ascending:false}).order('created_at',{ascending:false}).limit(500);
+ const {data,error}=await db.from('capital_transactions').select('id,transaction_type,amount,transaction_date,payment_method,reference,description,created_at,status,reversed_by,reversed_at,reversal_reason').eq('organization_id',orgId).order('transaction_date',{ascending:false}).order('created_at',{ascending:false}).limit(500);
  if(error){$('status').classList.remove('hidden');$('status').textContent='Could not load capital ledger: '+error.message;return}
  rows=data||[];render();
 }
