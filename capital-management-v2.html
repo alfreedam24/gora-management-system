@@ -14,6 +14,55 @@
 .plus{color:#087b67;font-weight:750}.minus{color:#b5473e;font-weight:750}
 @media(max-width:900px){.capgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.capform{grid-template-columns:1fr}.capform .wide{grid-column:auto}.capcard{padding:12px}.capcard strong{font-size:19px}}
+
+/* GORA MOBILE RESPONSIVENESS FIX */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.page-wrap {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.page-heading h2 {
+  font-size: clamp(18px, 5vw, 24px);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.capcard, .panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cap-table {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cap-table table {
+  min-width: 760px;
+}
+
 </style></head><body>
 <div class="page-wrap" style="max-width:1200px">
 <div class="page-heading"><div><div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div><h2>Capital Management</h2><div class="sub">Owner capital and owner loans, recorded separately from member savings.</div></div><div class="actions"><button class="secondary" id="back">← Workspace</button><button class="secondary" id="refresh">Refresh</button></div></div>
