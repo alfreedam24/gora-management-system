@@ -1,0 +1,547 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GORA | Finance Module</title>
+
+<style>
+:root{
+  --navy:#103b61;
+  --blue:#1762b1;
+  --light:#f3f6fb;
+  --border:#e2e8f0;
+  --text:#172b4d;
+  --muted:#718096;
+  --green:#16845b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:var(--light);
+  color:var(--text);
+}
+header{
+  background:var(--navy);
+  color:white;
+  padding:20px;
+}
+.header-inner{
+  max-width:1200px;
+  margin:auto;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+}
+.brand{font-size:21px;font-weight:800}
+.brand small{
+  display:block;
+  font-size:11px;
+  letter-spacing:1.5px;
+  opacity:.75;
+  margin-top:5px;
+}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn{
+  border:0;
+  border-radius:9px;
+  padding:11px 15px;
+  font-weight:700;
+  cursor:pointer;
+  text-decoration:none;
+  display:inline-block;
+}
+.btn-light{background:white;color:var(--navy)}
+.btn-blue{background:var(--blue);color:white}
+main{
+  max-width:1200px;
+  margin:25px auto;
+  padding:0 16px 40px;
+}
+.welcome{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  margin-bottom:22px;
+}
+h1{font-size:25px;margin:0 0 7px}
+h2{font-size:18px;margin:0 0 15px}
+p{color:var(--muted);margin:0}
+.section{margin-top:28px}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:15px;
+}
+.card,.module{
+  background:white;
+  border:1px solid var(--border);
+  border-radius:15px;
+  padding:19px;
+  box-shadow:0 2px 8px rgba(20,40,70,.035);
+}
+.metric-label{font-size:13px;color:var(--muted)}
+.metric-value{
+  display:block;
+  font-size:24px;
+  font-weight:800;
+  margin:12px 0 7px;
+}
+.metric-note{font-size:12px;color:var(--muted)}
+.module-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:15px;
+}
+.module{
+  display:block;
+  color:inherit;
+  text-decoration:none;
+  transition:.15s;
+}
+.module:hover{
+  border-color:var(--blue);
+  transform:translateY(-2px);
+}
+.module-icon{
+  width:43px;height:43px;
+  border-radius:12px;
+  background:#eaf2fc;
+  display:grid;
+  place-items:center;
+  font-size:22px;
+  margin-bottom:14px;
+}
+.module h3{font-size:16px;margin:0 0 7px}
+.module p{font-size:13px;line-height:1.5;min-height:38px}
+.module .open{
+  display:inline-block;
+  color:var(--blue);
+  font-weight:700;
+  font-size:13px;
+  margin-top:15px;
+}
+.status{
+  background:#fff8e8;
+  border:1px solid #f1dfb7;
+  color:#79551a;
+  padding:13px 15px;
+  border-radius:10px;
+  font-size:13px;
+  line-height:1.5;
+  margin-top:18px;
+}
+.status.error{
+  background:#fff0f0;
+  border-color:#f2caca;
+  color:#9b3030;
+}
+.status.good{
+  background:#eaf8f0;
+  border-color:#c9ead7;
+  color:#176a43;
+}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:500px}
+th,td{
+  padding:13px 10px;
+  border-bottom:1px solid var(--border);
+  text-align:left;
+  font-size:13px;
+}
+th{background:#f6f8fc;color:#52627a}
+.empty{text-align:center;color:var(--muted);padding:22px}
+footer{
+  text-align:center;
+  padding:25px;
+  color:var(--muted);
+  font-size:12px;
+}
+@media(max-width:850px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .module-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:520px){
+  .header-inner,.welcome{align-items:flex-start;flex-direction:column}
+  .module-grid{grid-template-columns:1fr}
+  h1{font-size:22px}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      GORA
+      <small>SAVINGS & CREDIT GROUP</small>
+    </div>
+    <div class="header-actions">
+      <a class="btn btn-light" href="index.html">Main Dashboard</a>
+      <button class="btn-blue" id="refresh">Refresh</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="welcome">
+    <div>
+      <h1>Finance Management</h1>
+      <p>Manage GORA's money, accounts, expenses and financial performance.</p>
+    </div>
+    <div id="today" class="metric-note"></div>
+  </section>
+
+  <div id="status" class="status">
+    Connecting to GORA financial records...
+  </div>
+
+  <section class="section">
+    <h2>Financial Overview</h2>
+
+    <div class="grid">
+      <div class="card">
+        <span class="metric-label">Owner capital introduced</span>
+        <strong class="metric-value" id="capital">KES —</strong>
+        <span class="metric-note">Recorded contributions less withdrawals</span>
+      </div>
+
+      <div class="card">
+        <span class="metric-label">Owner loan payable</span>
+        <strong class="metric-value" id="ownerLoan">KES —</strong>
+        <span class="metric-note">Owner loans less repayments</span>
+      </div>
+
+      <div class="card">
+        <span class="metric-label">Posted income</span>
+        <strong class="metric-value" id="income">KES —</strong>
+        <span class="metric-note">From posted accounting entries</span>
+      </div>
+
+      <div class="card">
+        <span class="metric-label">Posted expenses</span>
+        <strong class="metric-value" id="expenses">KES —</strong>
+        <span class="metric-note">From posted accounting entries</span>
+      </div>
+    </div>
+
+    <div class="status">
+      These figures are based only on records currently available in the database.
+      Missing or unposted transactions will not appear here. This is not yet a
+      complete statement of GORA's financial position.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Finance Management</h2>
+
+    <div class="module-grid">
+
+      <a class="module" href="finance-performance-v2.html">
+        <div class="module-icon">📊</div>
+        <h3>Finance Overview & Performance</h3>
+        <p>Weekly, monthly, six-month and annual financial performance.</p>
+        <span class="open">Open module →</span>
+      </a>
+
+      <a class="module" href="finance-transactions-v2.html">
+        <div class="module-icon">↔️</div>
+        <h3>Transactions</h3>
+        <p>View and search financial transactions across GORA.</p>
+        <span class="open">Coming next →</span>
+      </a>
+
+      <a class="module" href="finance-income-v2.html">
+        <div class="module-icon">📈</div>
+        <h3>Income</h3>
+        <p>Track interest, processing fees and other income.</p>
+        <span class="open">Coming next →</span>
+      </a>
+
+      <a class="module" href="finance-expenses-v2.html">
+        <div class="module-icon">🧾</div>
+        <h3>Expenses</h3>
+        <p>Record operating expenses, payment methods and approvals.</p>
+        <span class="open">Coming next →</span>
+      </a>
+
+      <a class="module" href="finance-petty-cash-v2.html">
+        <div class="module-icon">💵</div>
+        <h3>Petty Cash</h3>
+        <p>Manage cash issued, spending, receipts and remaining balances.</p>
+        <span class="open">Coming next →</span>
+      </a>
+
+      <a class="module" href="capital-management-v2.html">
+        <div class="module-icon">🏦</div>
+        <h3>Capital Management</h3>
+        <p>Manage owner contributions, withdrawals and owner loans.</p>
+        <span class="open">Open module →</span>
+      </a>
+
+      <a class="module" href="daily-reconciliation-v2.html">
+        <div class="module-icon">✅</div>
+        <h3>Daily Reconciliation</h3>
+        <p>Compare actual and expected cash, M-Pesa and bank balances.</p>
+        <span class="open">Open module →</span>
+      </a>
+
+      <a class="module" href="finance-accounting-v2.html">
+        <div class="module-icon">📚</div>
+        <h3>Accounting</h3>
+        <p>Chart of accounts, journals and double-entry bookkeeping.</p>
+        <span class="open">Coming next →</span>
+      </a>
+
+      <a class="module" href="finance-reports-v2.html">
+        <div class="module-icon">📑</div>
+        <h3>Financial Reports</h3>
+        <p>Profit and loss, cash flow and financial statements.</p>
+        <span class="open">Coming next →</span>
+      </a>
+
+    </div>
+  </section>
+
+  <section class="section card">
+    <h2>Recent Capital Movements</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Transaction</th>
+            <th>Description</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody id="capitalHistory">
+          <tr><td colspan="4" class="empty">Loading records...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  GORA Savings & Credit Group · Internal Financial Management
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+(()=>{
+'use strict';
+
+const $=id=>document.getElementById(id);
+
+const money=n=>new Intl.NumberFormat('en-KE',{
+  style:'currency',
+  currency:'KES',
+  maximumFractionDigits:2
+}).format(Number(n||0));
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({
+  '&':'&amp;',
+  '<':'&lt;',
+  '>':'&gt;',
+  '"':'&quot;',
+  "'":'&#39;'
+}[c]));
+
+let db,orgId,capitalRows=[];
+
+$('today').textContent=new Intl.DateTimeFormat('en-KE',{
+  dateStyle:'full',
+  timeZone:'Africa/Nairobi'
+}).format(new Date());
+
+function message(text,type=''){
+  $('status').textContent=text;
+  $('status').className='status '+type;
+}
+
+async function init(){
+  const url=localStorage.getItem('gora_url');
+  const key=localStorage.getItem('gora_key');
+
+  if(!url||!key||!window.supabase){
+    message('Connection settings are missing. Return to the main GORA dashboard and check your Supabase connection.','error');
+    return;
+  }
+
+  db=window.supabase.createClient(url,key);
+
+  const {data:{session},error}=await db.auth.getSession();
+
+  if(error||!session){
+    message('Your session has expired. Sign in through the main GORA dashboard first.','error');
+    return;
+  }
+
+  const userId=session.user.id;
+
+  const {data:profile,error:profileError}=await db
+    .from('profiles')
+    .select('active')
+    .eq('id',userId)
+    .single();
+
+  if(profileError||!profile?.active){
+    message('Your GORA staff profile could not be verified. Contact the administrator.','error');
+    return;
+  }
+
+  const {data:roles,error:roleError}=await db
+    .from('user_roles')
+    .select('organization_id')
+    .eq('user_id',userId)
+    .eq('is_active',true)
+    .limit(2);
+
+  if(roleError||!roles?.length){
+    message('No active GORA organisation assignment was found.','error');
+    return;
+  }
+
+  if(roles.length!==1){
+    message('Your account has multiple active organisations. An organisation selector is needed before displaying financial information.','error');
+    return;
+  }
+
+  orgId=roles[0].organization_id;
+
+  message('Connected to GORA financial records.','good');
+
+  await load();
+}
+
+async function load(){
+  if(!db||!orgId)return;
+
+  $('refresh').disabled=true;
+  $('refresh').textContent='Loading...';
+
+  try{
+    await Promise.all([
+      loadCapital(),
+      loadPostedAccounts()
+    ]);
+  }catch(e){
+    message('Unable to load some financial records: '+(e.message||e),'error');
+  }
+
+  $('refresh').disabled=false;
+  $('refresh').textContent='Refresh';
+}
+
+async function loadCapital(){
+  const {data,error}=await db
+    .from('capital_transactions')
+    .select('transaction_type,amount,transaction_date,description')
+    .eq('organization_id',orgId)
+    .order('transaction_date',{ascending:false})
+    .limit(500);
+
+  if(error)throw error;
+
+  capitalRows=data||[];
+
+  let contribution=0,withdrawal=0,loanIn=0,loanRepay=0;
+
+  capitalRows.forEach(r=>{
+    const amount=Number(r.amount||0);
+
+    if(r.transaction_type==='capital_contribution')contribution+=amount;
+    if(r.transaction_type==='capital_withdrawal')withdrawal+=amount;
+    if(r.transaction_type==='owner_loan_in')loanIn+=amount;
+    if(r.transaction_type==='owner_loan_repayment')loanRepay+=amount;
+  });
+
+  $('capital').textContent=money(contribution-withdrawal);
+  $('ownerLoan').textContent=money(loanIn-loanRepay);
+
+  $('capitalHistory').innerHTML=capitalRows.slice(0,10).map(r=>`
+    <tr>
+      <td>${esc(r.transaction_date)}</td>
+      <td>${esc(r.transaction_type.replaceAll('_',' '))}</td>
+      <td>${esc(r.description||'—')}</td>
+      <td>${money(r.amount)}</td>
+    </tr>
+  `).join('')||'<tr><td colspan="4" class="empty">No capital movements recorded yet.</td></tr>';
+}
+
+async function loadPostedAccounts(){
+  const {data:accounts,error:accountError}=await db
+    .from('financial_accounts')
+    .select('id,account_type')
+    .eq('organization_id',orgId)
+    .eq('is_active',true);
+
+  if(accountError)throw accountError;
+
+  const {data:entries,error:entryError}=await db
+    .from('journal_entries')
+    .select('id')
+    .eq('organization_id',orgId)
+    .eq('status','POSTED')
+    .limit(1000);
+
+  if(entryError)throw entryError;
+
+  const ids=(entries||[]).map(e=>e.id);
+
+  if(!ids.length){
+    $('income').textContent=money(0);
+    $('expenses').textContent=money(0);
+    return;
+  }
+
+  const {data:lines,error:lineError}=await db
+    .from('journal_lines')
+    .select('account_id,debit,credit')
+    .eq('organization_id',orgId)
+    .in('journal_entry_id',ids);
+
+  if(lineError)throw lineError;
+
+  const accountMap={};
+  (accounts||[]).forEach(a=>accountMap[a.id]=a);
+
+  let income=0,expenses=0;
+
+  (lines||[]).forEach(line=>{
+    const account=accountMap[line.account_id];
+    if(!account)return;
+
+    const debit=Number(line.debit||0);
+    const credit=Number(line.credit||0);
+
+    if(account.account_type==='INCOME')income+=credit-debit;
+    if(account.account_type==='EXPENSE')expenses+=debit-credit;
+  });
+
+  $('income').textContent=money(income);
+  $('expenses').textContent=money(expenses);
+}
+
+$('refresh').addEventListener('click',()=>{
+  load().catch(e=>message(e.message||e,'error'));
+});
+
+init().catch(e=>{
+  message('Unable to open Finance Module: '+(e.message||e),'error');
+});
+
+})();
+</script>
+
+</body>
+</html>
