@@ -888,6 +888,209 @@ async function performancePage(c){
  <div class="notice">Important: the savings percentage is measured against each chama's weekly target (KSh 100 per active member by default). Repayment performance, attendance and participation are not yet fully measurable because the current database has no attendance register or defined repayment targets. The displayed overall score is provisional and must not be treated as a complete chama score.</div>`;
 }
 
+async function loanAccountsPage(c) {
+  try {
+    const { data: authData, error: authError } = await db.auth.getUser();
+
+    if (authError || !authData?.user) {
+      throw new Error('Please sign in again.');
+    }
+
+    const assignments = await safe(
+      db.from('user_roles')
+        .select('organization_id')
+        .eq('user_id', authData.user.id)
+        .eq('is_active', true)
+    );
+
+    const orgIds = [...new Set(
+      (assignments.data || [])
+        .map(x => x.organization_id)
+        .filter(Boolean)
+    )];
+
+    if (orgIds.length !== 1) {
+      throw new Error(
+        'Your staff account must have exactly one active organisation assignment.'
+      );
+    }
+
+    const orgId = orgIds[0];
+
+    const [loansResult, membersResult, individualsResult,
+      productsResult, repaymentsResult, schedulesResult] = await Promise.all([
+      safe(db.from('loan_accounts')
+        .select('id,application_id,borrower_type,member_id,individual_borrower_id,loan_product_id,principal_amount,total_interest,total_repayment,repayment_frequency,duration_count,duration_unit,disbursed_on,first_due_date,status')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(200)),
+
+      safe(db.from('members')
+        .select('id,member_number,full_name,phone')
+        .eq('organization_id', orgId)),
+
+      safe(db.from('individual_borrowers')
+        .select('id,borrower_number,full_name,phone')
+        .eq('organization_id', orgId)),
+
+      safe(db.from('loan_products')
+        .select('id,product_name')
+        .eq('organization_id', orgId)),
+
+      safe(db.from('loan_repayments')
+        .select('loan_account_id,amount,status')
+        .eq('organization_id', orgId)),
+
+      safe(db.from('loan_repayment_schedules')
+        .select('loan_account_id,due_date,total_due,status')
+        .eq('organization_id', orgId)
+        .order('due_date'))
+    ]);
+
+    const loans = loansResult.data || [];
+    const members = membersResult.data || [];
+    const individuals = individualsResult.data || [];
+    const products = productsResult.data || [];
+    const repayments = repaymentsResult.data || [];
+    const schedules = schedulesResult.data || [];
+
+    const memberMap = Object.fromEntries(
+      members.map(x => [x.id, x])
+    );
+
+    const individualMap = Object.fromEntries(
+      individuals.map(x => [x.id, x])
+    );
+
+    const productMap = Object.fromEntries(
+      products.map(x => [x.id, x.product_name])
+    );
+
+    const money = n => cash(Number(n || 0));
+
+    const rows = loans.map(loan => {
+      const borrower = loan.borrower_type === 'MEMBER'
+        ? memberMap[loan.member_id]
+        : individualMap[loan.individual_borrower_id];
+
+      const paid = repayments
+        .filter(r =>
+          r.loan_account_id === loan.id &&
+          r.status === 'POSTED'
+        )
+        .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+      const outstanding = Math.max(
+        0,
+        Number(loan.total_repayment || 0) - paid
+      );
+
+      const nextDue = schedules.find(s =>
+        s.loan_account_id === loan.id &&
+        !['PAID', 'WAIVED'].includes(s.status) &&
+        Number(s.total_due || 0) > 0
+      );
+
+      return {
+        loan,
+        borrower: borrower?.full_name || 'Borrower not found',
+        borrowerNumber: borrower?.member_number ||
+          borrower?.borrower_number || '—',
+        product: productMap[loan.loan_product_id] || '—',
+        paid,
+        outstanding,
+        nextDue: nextDue?.due_date || '—'
+      };
+    });
+
+    const totalPrincipal = loans.reduce(
+      (sum, x) => sum + Number(x.principal_amount || 0), 0
+    );
+
+    const totalPaid = rows.reduce(
+      (sum, x) => sum + x.paid, 0
+    );
+
+    const totalOutstanding = rows.reduce(
+      (sum, x) => sum + x.outstanding, 0
+    );
+
+    c.innerHTML = `
+      <div class="page-heading">
+        <div>
+          <h2>Loan Accounts</h2>
+          <div class="sub">
+            Individual loan records and balances. Each loan is tracked separately.
+          </div>
+        </div>
+      </div>
+
+      <div class="stats">
+        ${stat('Loan accounts', loans.length, 'All recorded accounts', 'blue')}
+        ${stat('Principal issued', money(totalPrincipal), 'Original loan amounts', 'blue')}
+        ${stat('Total paid', money(totalPaid), 'Posted repayments', 'good')}
+        ${stat('Outstanding', money(totalOutstanding), 'Remaining repayment balance', 'warn')}
+      </div>
+
+      <div class="notice">
+        A member can have multiple loan accounts. Payments and balances are
+        calculated separately for each account. Account references below are
+        shortened record IDs, not official account numbers.
+      </div>
+
+      <div class="tablebox">
+        <div class="table-head">
+          <h3>Loan account records</h3>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Loan reference</th>
+              <th>Borrower</th>
+              <th>Product</th>
+              <th>Principal</th>
+              <th>Total repayment</th>
+              <th>Paid</th>
+              <th>Outstanding</th>
+              <th>Next due</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map(x => `
+              <tr>
+                <td>${esc(x.loan.id.slice(0, 8).toUpperCase())}</td>
+                <td>
+                  ${esc(x.borrower)}
+                  <div class="sub">${esc(x.borrowerNumber)}</div>
+                </td>
+                <td>${esc(x.product)}</td>
+                <td>${money(x.loan.principal_amount)}</td>
+                <td>${money(x.loan.total_repayment)}</td>
+                <td>${money(x.paid)}</td>
+                <td>${money(x.outstanding)}</td>
+                <td>${esc(x.nextDue)}</td>
+                <td>${esc(x.loan.status)}</td>
+              </tr>
+            `).join('') : `
+              <tr>
+                <td colspan="9" class="empty">No loan accounts found.</td>
+              </tr>
+            `}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (e) {
+    c.innerHTML = `
+      <div class="panel">
+        <h3>Could not load Loan Accounts</h3>
+        <p>${esc(e.message || e)}</p>
+      </div>
+    `;
+  }
+        }
+
 function esc(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 async function load(page){$('title').textContent=page;const c=$('content');c.innerHTML='<div class="panel">Loading records…</div>';try{if(page==='Dashboard'){await dashboard(c);return}if(['Finance Overview','Transactions','Income','Expenses','Petty Cash','Capital Management','Daily Reconciliation','Accounting','Financial Reports'].includes(page)){await financePage(page,c);return}if(page==='Chamas'){await chamaPage(c);return}if(page==='Members'){await membersPage(c);return}if(page==='Applications'){await applicationsPage(c);return}if(page==='Performance'){await performancePage(c);return}if(page==='Settings'){c.innerHTML='<div class="panel"><h3>System settings</h3><p>Loan product rates and fees must be administered by the GORA admin only. Configuration controls will be enabled after permission policies are verified.</p></div>';return}if(page==='Loans'){
   await loanAccountsPage(c);
