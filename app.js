@@ -191,6 +191,7 @@ async function financePage(page,c){
     <div class="page-heading"><div><h2>${page}</h2><div class="sub">${descriptions[page]||'Finance workspace'}</div></div></div>
     <div class="notice">This section is being prepared. No figures will be invented or treated as official profit before the required accounting records and controls are available.</div>
   `;
+}
 async function chamaPage(c){
   const [groups,members]=await Promise.all([
   safe(db.from('chamas').select('id,name,location,meeting_day,meeting_frequency,weekly_savings_target,status,created_at').order('created_at',{ascending:false})),
