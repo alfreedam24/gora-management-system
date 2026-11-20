@@ -116,7 +116,7 @@ async function load(){
  if(error){$('status').classList.remove('hidden');$('status').textContent='Could not load capital ledger: '+error.message;return}
  rows=data||[];render();
 }
-function sum(t){return rows.filter(x=>x.transaction_type===t).reduce((s,x)=>s+Number(x.amount||0),0)}
+function sum(t){return rows.filter(x=>x.transaction_type===t&&x.status!=='REVERSED').reduce((s,x)=>s+Number(x.amount||0),0)}
 function render(){
  const contribution=sum('capital_contribution'),withdrawal=sum('capital_withdrawal'),loanIn=sum('owner_loan_in'),loanRepay=sum('owner_loan_repayment');
  $('summary').innerHTML=[['Total owner capital introduced',money(contribution)],['Owner withdrawals',money(withdrawal)],['Net owner capital',money(contribution-withdrawal)],['Owner loan payable',money(loanIn-loanRepay)]].map(([a,b])=>'<div class="capcard"><small>'+a+'</small><strong>'+b+'</strong></div>').join('');
