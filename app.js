@@ -145,7 +145,53 @@ const pages={
  'Reports':['loan_balances',['loan_id','member_id','principal','interest_amount','total_payable','amount_paid','outstanding_balance','status']]
 };
 async function chamaPage(c){
- const [groups,members]=await Promise.all([
+async function financePage(page,c){
+  if(page==='Transactions' || page==='Capital Management'){
+    const r=await safe(
+      db.from('capital_transactions')
+        .select('transaction_date,transaction_type,amount,payment_method,reference,description')
+        .order('transaction_date',{ascending:false})
+        .limit(100)
+    );
+    const rows=r.data||[];
+    c.innerHTML=`
+      <div class="page-heading">
+        <div><h2>${page}</h2><div class="sub">Capital movements recorded in GORA.</div></div>
+      </div>
+      <div class="notice">These are capital transactions, not a complete list of all income, expenses or loan repayments.</div>
+      ${table('Capital transaction records',['transaction_date','transaction_type','amount','payment_method','reference','description'],rows)}
+    `;
+    return;
+  }
+
+  if(page==='Daily Reconciliation'){
+    const r=await safe(
+      db.from('daily_reconciliations')
+        .select('reconciliation_date,opening_cash,opening_mpesa,opening_bank,actual_closing_cash,actual_closing_mpesa,actual_closing_bank,cash_variance,mpesa_variance,bank_variance,status,notes')
+        .order('reconciliation_date',{ascending:false})
+        .limit(100)
+    );
+    c.innerHTML=`
+      <div class="page-heading"><div><h2>Daily Reconciliation</h2><div class="sub">Compare expected and actual balances.</div></div></div>
+      ${table('Reconciliation records',['reconciliation_date','opening_cash','opening_mpesa','opening_bank','actual_closing_cash','actual_closing_mpesa','actual_closing_bank','cash_variance','mpesa_variance','bank_variance','status','notes'],r.data||[])}
+    `;
+    return;
+  }
+
+  const descriptions={
+    'Finance Overview':'A consolidated view of GORA financial performance.',
+    'Income':'Income will be calculated from verified posted accounting entries.',
+    'Expenses':'Expenses will be calculated from verified posted accounting entries.',
+    'Petty Cash':'Petty cash records require a dedicated, secure transaction workflow.',
+    'Accounting':'The accounting ledger will use controlled double-entry journal records.',
+    'Financial Reports':'Financial reports will use verified posted accounting entries.'
+  };
+
+  c.innerHTML=`
+    <div class="page-heading"><div><h2>${page}</h2><div class="sub">${descriptions[page]||'Finance workspace'}</div></div></div>
+    <div class="notice">This section is being prepared. No figures will be invented or treated as official profit before the required accounting records and controls are available.</div>
+  `;
+}const [groups,members]=await Promise.all([
   safe(db.from('chamas').select('id,name,location,meeting_day,meeting_frequency,weekly_savings_target,status,created_at').order('created_at',{ascending:false})),
   safe(db.from('members').select('id,member_number,full_name,phone,status').order('full_name'))
  ]);
@@ -841,7 +887,7 @@ async function performancePage(c){
 }
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
-async function load(page){$('title').textContent=page;const c=$('content');c.innerHTML='<div class="panel">Loading records…</div>';try{if(page==='Dashboard'){await dashboard(c);return}if(page==='Chamas'){await chamaPage(c);return}if(page==='Members'){await membersPage(c);return}if(page==='Applications'){await applicationsPage(c);return}if(page==='Performance'){await performancePage(c);return}if(page==='Settings'){c.innerHTML='<div class="panel"><h3>System settings</h3><p>Loan product rates and fees must be administered by the GORA admin only. Configuration controls will be enabled after permission policies are verified.</p></div>';return}
+async function load(page){$('title').textContent=page;const c=$('content');c.innerHTML='<div class="panel">Loading records…</div>';try{if(page==='Dashboard'){await dashboard(c);return}if(['Finance Overview','Transactions','Income','Expenses','Petty Cash','Capital Management','Daily Reconciliation','Accounting','Financial Reports'].includes(page)){await financePage(page,c);return}if(page==='Chamas'){await chamaPage(c);return}if(page==='Members'){await membersPage(c);return}if(page==='Applications'){await applicationsPage(c);return}if(page==='Performance'){await performancePage(c);return}if(page==='Settings'){c.innerHTML='<div class="panel"><h3>System settings</h3><p>Loan product rates and fees must be administered by the GORA admin only. Configuration controls will be enabled after permission policies are verified.</p></div>';return}
 const [tbl,cols]=pages[page]||['audit_logs',['action','table_name','record_id','created_at']];let q=db.from(tbl).select('*').limit(100);if(page==='Arrears')q=q.lt('due_date',new Date().toISOString().slice(0,10)).gt('balance',0);const res=await safe(q);let rows=res.data||[];if(page==='Expenses')rows=rows.filter(x=>x.entry_type==='expense');c.innerHTML=`<div class="page-heading"><div><h2>${page}</h2><div class="sub">Showing up to 100 records from the connected GORA database.</div></div></div><div class="notice">This section is currently connected for viewing. Data-entry, approval and payment actions will be enabled only after their database security and audit controls are completed.</div>${table(page,cols,rows)}`;}
 catch(e){c.innerHTML=`<div class="panel"><h3>Could not load ${page}</h3><p>${String(e.message||e)}</p><p>Database access policies or the required view may not yet be configured. No data has been changed.</p></div>`}}
 (function(){const u=localStorage.getItem('gora_url')||'',k=localStorage.getItem('gora_key')||'';$('url').value=u;$('key').value=k;connect();})();
