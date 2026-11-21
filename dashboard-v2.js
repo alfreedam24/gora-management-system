@@ -61,7 +61,7 @@ const specs = [
   ['chamas','chama_groups','id,organization_id,group_code,group_name,status,created_at,meeting_frequency,meeting_day,target_weekly_savings,location,meeting_time,meeting_venue','created_at',1000],
   ['loans','loan_accounts','id,organization_id,borrower_type,member_id,individual_borrower_id,group_id,principal_amount,total_interest,total_repayment,disbursed_on,first_due_date,status,loan_account_number','created_at',3000],
   ['repayments','loan_repayments','id,organization_id,loan_account_id,payment_date,amount,payment_method,reference_number,status,reversed_at','payment_date',5000],
-  ['loan_applications','loan_applications','id,organization_id,member_id,individual_borrower_id,requested_amount,approved_amount,status,applied_at,requested_at,created_at','created_at',2000],
+['loan_applications','loan_applications','id,organization_id,member_id,individual_borrower_id,requested_amount,approved_amount,status,applied_at,created_at','created_at',2000],
   ['installments','loan_repayment_schedules','id,organization_id,loan_account_id,installment_number,due_date,principal_due,interest_due,total_due,status','due_date',10000],
   ['allocations','loan_repayment_allocations','id,organization_id,repayment_id,schedule_id,amount,created_at','created_at',10000],
   ['savings_accounts','savings_accounts','id,organization_id,member_id,account_number,status','created_at',5000],
