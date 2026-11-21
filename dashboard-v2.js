@@ -180,6 +180,42 @@
         errors.push('Upcoming meetings: ' + (e.message || String(e)));
                                           }
        
+      const tomorrowDate = new Date(`${today}T12:00:00`);
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrowKey = dayKey(tomorrowDate);
+
+      const upcomingMeetingPanel = panel(
+        'Upcoming Chama Meetings',
+        upcomingMeetings.length
+          ? `<div class="list">${upcomingMeetings.slice(0,8).map(m=>{
+              const meetingDay = m.meeting_date === today
+                ? 'Today'
+                : m.meeting_date === tomorrowKey
+                  ? 'Tomorrow'
+                  : new Date(m.meeting_date+'T12:00:00')
+                      .toLocaleDateString('en-KE',{
+                        timeZone:'Africa/Nairobi',
+                        day:'numeric',
+                        month:'short',
+                        year:'numeric'
+                      });
+
+              const meetingTime = m.meeting_time
+                ? String(m.meeting_time).slice(0,5)
+                : 'Time not set';
+
+              return `<div class="item">
+                <div class="itemhead">
+                  <strong>${esc(m.group_name)}</strong>
+                  <span class="pill">${esc(meetingDay)}</span>
+                </div>
+                <p class="small">${esc(m.meeting_date)} · ${esc(meetingTime)}</p>
+                <p class="muted small">${esc(m.venue || 'Venue not set')}</p>
+              </div>`;
+            }).join('')}</div>`
+          : '<p class="muted">No upcoming Chama meetings scheduled.</p>'
+      );
+       
       // Existing six-month chart history retained, now using the main GORA tables.
       const monthKeys=monthsBack(6);
       const savingsTrend=monthKeys.map(k=>{
@@ -220,6 +256,7 @@
         </div>
 
         <div class="gora-section-heading"><h3>3. Alerts and reminders</h3><span>Items requiring attention</span></div>
+                ${upcomingMeetingPanel}
         <div class="grid-two">
           ${panel('Loan and chama alerts',`${metric('Loan applications awaiting review',pendingApps.length)}${metric('Approved applications awaiting disbursement',approvedAwaiting.length)}${metric('Individual overdue instalments',overdueInst.length)}${metric('Total loan arrears',money(arrears))}${metric('Chamas marked active',activeChamas.length)}<p class="chart-note">Chama meeting due dates/default alerts are not calculated because the current chama table has meeting day/frequency but no verified member contribution schedule.</p>`)}
           ${panel('Fines and payment alerts',`${metric('Unpaid / unresolved fines',unpaidFines.length)}${metric('Value of unresolved fines',money(fineDue))}${metric('Overdue fines',unpaidFines.filter(x=>x.due_date&&x.due_date<today).length)}${metric('Fine payments received today',money(finesCollectedToday))}${metric('Petty cash transactions awaiting approval',petty.filter(x=>['pending','submitted'].includes(low(x.status))).length)}`)}
