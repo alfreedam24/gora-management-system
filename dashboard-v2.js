@@ -87,8 +87,31 @@ const installments = data.installments || [];
 const allocations = data.allocations || [];
 
 const savingsAccounts = data.savings_accounts || [];
-const savings = data.savings_transactions || [];
+const savingsRaw = data.savings_transactions || [];
+const savingsAccountById = new Map(
+  savingsAccounts.map(a => [a.id, a])
+);
 
+const reversedSavingsIds = new Set(
+  savingsRaw
+    .filter(x => x.reversed_transaction_id)
+    .map(x => x.reversed_transaction_id)
+);
+
+const savings = savingsRaw
+  .filter(x =>
+    low(x.status) === 'posted' &&
+    !x.reversed_transaction_id &&
+    !reversedSavingsIds.has(x.id)
+  )
+  .map(x => {
+    const account = savingsAccountById.get(x.savings_account_id);
+
+    return {
+      ...x,
+      member_id: account?.member_id || null
+    };
+  });
 const reconciliations = data.reconciliations || [];
 const capital = data.capital || [];
 const petty = data.petty_cash || [];
@@ -103,14 +126,68 @@ const finePayments = [];
       const startMonth=today.slice(0,7)+'-01';
       const dateOf=(x,field)=>dayKey(x[field]);
       const inPeriod=(x,field,period)=>{const k=dateOf(x,field); if(!k)return false; if(period==='today')return k===today; if(period==='week')return k>=startWeek&&k<=today; if(period==='month')return k>=startMonth&&k<=today; if(period==='custom'){const a=host.dataset.goraStart||today,b=host.dataset.goraEnd||today;return k>=a&&k<=b;} return true;};
-      const postedRepayments=repayments;
-      const disbursedLoans=loans.filter(x=>x.disbursement_date && !['pending','approved','rejected','cancelled','declined'].includes(low(x.status)));
-      const disbursedIds=new Set(disbursedLoans.map(x=>x.id));
-      const loanInst=installments.filter(x=>disbursedIds.has(x.loan_id));
-      const outstanding=sum(loanInst,x=>Math.max(0,Number(x.balance)||0));
-      const overdueInst=loanInst.filter(x=>x.due_date<today&&Number(x.balance)>0);
-      const arrears=sum(overdueInst,x=>x.balance);
-      const activeLoans=disbursedLoans.filter(x=>!['completed','closed','defaulted','written_off'].includes(low(x.status)));
+      const postedRepayments = repayments.filter(
+  x => low(x.status) === 'posted' && !x.reversed_at
+);
+
+const postedRepaymentIds = new Set(
+  postedRepayments.map(x => x.id)
+);
+
+const disbursedLoans = loans.filter(
+  x => x.disbursed_on &&
+    !['pending', 'approved', 'rejected', 'cancelled', 'declined']
+      .includes(low(x.status))
+);
+
+const disbursedIds = new Set(
+  disbursedLoans.map(x => x.id)
+);
+
+// Sum only allocations belonging to posted, non-reversed repayments.
+const allocatedBySchedule = new Map();
+
+allocations
+  .filter(x => postedRepaymentIds.has(x.repayment_id))
+  .forEach(x => {
+    const current = allocatedBySchedule.get(x.schedule_id) || 0;
+    allocatedBySchedule.set(
+      x.schedule_id,
+      current + Number(x.amount || 0)
+    );
+  });
+
+// Calculate each installment's remaining balance.
+const loanInst = installments
+  .filter(x => disbursedIds.has(x.loan_account_id))
+  .map(x => {
+    const totalDue = Number(x.total_due || 0);
+    const allocated = allocatedBySchedule.get(x.id) || 0;
+
+    const balance = ['paid', 'waived', 'cancelled']
+      .includes(low(x.status))
+      ? 0
+      : Math.max(0, totalDue - allocated);
+
+    return {
+      ...x,
+      loan_id: x.loan_account_id,
+      balance
+    };
+  });
+
+const outstanding = sum(loanInst, x => x.balance);
+
+const overdueInst = loanInst.filter(
+  x => x.due_date < today && x.balance > 0
+);
+
+const arrears = sum(overdueInst, x => x.balance);
+
+const activeLoans = disbursedLoans.filter(
+  x => !['completed', 'closed', 'defaulted', 'written_off']
+    .includes(low(x.status))
+);
       const activeMembers=members.filter(x=>low(x.status)==='active');
       const activeChamas=chamas.filter(x=>low(x.status)==='active');
       const pendingApps=apps.filter(x=>['pending','submitted','recommended'].includes(low(x.status)));
@@ -123,7 +200,9 @@ const finePayments = [];
       const periodText=period==='today'?'Today':period==='week'?'This week':period==='month'?'This month':'All time';
       const todaySavings=savings.filter(x=>inPeriod(x,'transaction_date',period));
       const todayRepayments=postedRepayments.filter(x=>inPeriod(x,'payment_date',period));
-      const todayDisbursements=disbursedLoans.filter(x=>inPeriod(x,'disbursement_date',period));
+      const todayDisbursements = disbursedLoans.filter(
+  x => inPeriod(x, 'disbursed_on', period)
+);
       const todayCashbook=cashbook.filter(x=>inPeriod(x,'transaction_date',period));
       const todayPetty=petty.filter(x=>inPeriod(x,'transaction_date',period));
       const todayMembership=membershipPayments.filter(x=>inPeriod(x,'payment_date',period));
@@ -133,7 +212,10 @@ const finePayments = [];
       const todayDeposits=todaySavings.filter(x=>['deposit','contribution','savings_deposit'].includes(low(x.transaction_type)));
       const todayWithdrawals=todaySavings.filter(x=>['withdrawal','savings_withdrawal'].includes(low(x.transaction_type)));
       const collectedToday=sum(todayRepayments);
-      const disbursedToday=sum(todayDisbursements,x=>x.principal);
+      const disbursedToday = sum(
+  todayDisbursements,
+  x => x.principal_amount
+);
       const expenseRows=todayCashbook.filter(x=>['expense','payment','outflow'].includes(low(x.entry_type)));
       const expensesToday=sum(expenseRows);
       const pettyOut=todayPetty.filter(x=>['expense','payment','out','withdrawal'].includes(low(x.transaction_type)) && ['approved','posted','paid','completed'].includes(low(x.status)));
@@ -141,7 +223,10 @@ const finePayments = [];
       const pettyBalance=sum(petty,x=>['topup','top_up','income','deposit','in'].includes(low(x.transaction_type))?Number(x.amount):(['expense','payment','out','withdrawal'].includes(low(x.transaction_type))?-Number(x.amount):0));
       const membershipToday=sum(todayMembership);
       const finesCollectedToday=sum(todayFinePayments);
-      const registrationsToday=members.filter(x=>inPeriod(x,'date_joined',period) || inPeriod(x,'created_at',period)).length;
+      const registrationsToday = members.filter(
+  x => inPeriod(x, 'registration_date', period) ||
+       inPeriod(x, 'created_at', period)
+).length;
       const recentMembers=members.slice(0,6), recentChamas=chamas.slice(0,6), recentRepayments=repayments.slice(0,8), recentApps=apps.slice(0,6), recentSavings=savings.slice(0,8);
       const memberName=id=>{const m=members.find(x=>x.id===id); return m?.full_name || 'Member record';};
 
