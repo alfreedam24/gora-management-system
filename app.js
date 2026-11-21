@@ -806,7 +806,11 @@ async function financePage(page,c){
     Journal Entries
   </button>
 </li>
-              <li>General Ledger</li>
+              <li>
+  <button type="button" data-open-general-ledger>
+    General Ledger
+  </button>
+</li>
               <li>Trial Balance</li>
               <li>Profit &amp; Loss Statement</li>
               <li>Balance Sheet</li>
@@ -847,7 +851,7 @@ async function financePage(page,c){
       c.querySelector('[data-open-coa]').addEventListener('click', showChartOfAccounts);
       c.querySelector('[data-open-journals]').addEventListener('click', showJournalEntries);
     };
-
+c.querySelector('[data-open-general-ledger]').addEventListener('click', showGeneralLedger);
     const showChartOfAccounts = async () => {
       c.innerHTML=`
         <div class="page-heading">
