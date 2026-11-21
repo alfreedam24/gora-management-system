@@ -498,18 +498,58 @@ async function financePage(page,c){
   
   if(page==='Petty Cash'){
     c.innerHTML=`
+      
       <div class="page-heading">
         <div>
           <h2>Petty Cash</h2>
-          <div class="sub">
-            Petty cash transaction entry is being restored.
-          </div>
+          <div class="sub">Record petty cash movements for approval.</div>
         </div>
       </div>
-      <div class="notice">
-        The transaction form is not available yet.
-        Please do not record petty cash manually here.
-      </div>
+
+      <form id="pettyCashForm" class="form-grid">
+        <label>Transaction type
+          <select name="transaction_type" required>
+            <option value="">Choose type</option>
+            <option value="OPENING_BALANCE">Opening balance</option>
+            <option value="CASH_RECEIVED">Cash received</option>
+            <option value="EXPENSE_PAID">Expense paid</option>
+            <option value="CASH_RETURNED">Cash returned</option>
+          </select>
+        </label>
+
+        <label>Date
+          <input type="date" name="transaction_date" required>
+        </label>
+
+        <label>Amount (KSh)
+          <input type="number" name="amount" min="1" step="0.01" required>
+        </label>
+
+        <label>Category
+          <input type="text" name="category" placeholder="e.g. Transport">
+        </label>
+
+        <label>Payment method
+          <select name="payment_method" required>
+            <option value="CASH">Cash</option>
+            <option value="MPESA">M-Pesa</option>
+            <option value="BANK">Bank</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </label>
+
+        <label>Reference
+          <input type="text" name="reference" placeholder="Optional reference">
+        </label>
+
+        <label>Description
+          <input type="text" name="description" placeholder="What is this transaction for?" required>
+        </label>
+
+        <button type="submit">Submit for approval</button>
+        <div id="pettyCashMsg" class="notice"></div>
+      </form>
+
     `;
     return;
   }
