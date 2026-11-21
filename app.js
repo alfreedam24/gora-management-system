@@ -967,7 +967,7 @@ async function financePage(page,c){
         const { data: accounts, error: accountsError } =
           await db
             .from('gora_chart_of_accounts')
-            .select('id,account_code,account_name')
+            .select('id,account_code,account_name,account_type')
             .eq('is_active', true)
             .order('account_code');
 
@@ -998,6 +998,17 @@ async function financePage(page,c){
               await db
                 .from('gora_journal_entry_lines')
                 .select(`
+                const selectedAccount = (accounts || []).find(
+  account => account.id === accountId
+);
+
+const isCreditNormal = [
+  'liability',
+  'equity',
+  'income'
+].includes(
+  String(selectedAccount?.account_type || '').toLowerCase()
+);
                   debit,
                   credit,
                   account:gora_chart_of_accounts(
@@ -1040,8 +1051,11 @@ async function financePage(page,c){
               runningBalance += debit - credit;
 
               const balanceSide =
-                runningBalance > 0 ? 'Dr' :
-                runningBalance < 0 ? 'Cr' : '—';
+  runningBalance === 0
+    ? '—'
+    : isCreditNormal
+      ? runningBalance > 0 ? 'Cr' : 'Dr'
+      : runningBalance > 0 ? 'Dr' : 'Cr';
 
               return `
                 <tr>
