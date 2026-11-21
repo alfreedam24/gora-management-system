@@ -38,7 +38,7 @@
 <div id="tab-overview"><div id="profileInfo" class="grid"></div><h3 style="margin-top:16px">Members</h3><div id="memberList" class="tablewrap"></div><div id="groupActions" class="actions" style="margin-top:12px"></div></div>
 <div id="tab-assign" class="hidden"><h3>Assign or transfer a member</h3><p class="muted small">Only approved/active members can be assigned. Previous membership is retained as TRANSFERRED by the database procedure.</p><form id="assignForm"><label>Approved member</label><select id="memberSelect" required></select><button class="btn" type="submit">Assign member to this group</button></form></div>
 <div id="tab-meetings" class="hidden"><h3>Record a meeting</h3><form id="meetingForm"><div class="row"><div><label>Meeting date *</label><input id="meetingDate" type="date" required></div><div><label>Time</label><input id="meetingRecordTime" type="time"></div><div><label>Venue</label><input id="meetingVenue"></div></div><label>Meeting notes</label><textarea id="meetingNotes"></textarea><button class="btn" type="submit">Save meeting</button></form><h3 style="margin-top:18px">Meeting history</h3><div id="meetingList" class="list"></div><div id="attendanceEditor"></div></div>
-  <div id="tab-calendar" class="hidden">
+
 <div id="tab-collections" class="hidden">
   <h3>Chama Savings & Collection Sheet</h3>
   <p class="muted small">
@@ -90,7 +90,7 @@
   <div id="collectionSheetMessage" class="notice hidden"></div>
 </div>
 
-  <h3>Meeting calendar</h3>
+  <div id="tab-calendar" class="hidden"><h3>Meeting calendar</h3>
   <p class="muted small">View upcoming meetings and meeting history for this group.</p>
   <div id="chamaCalendar" class="list">
     <p class="muted">Meeting calendar will appear here.</p>
