@@ -848,10 +848,7 @@ async function financePage(page,c){
           </details>
         </div>
       `;
-      c.querySelector('[data-open-coa]').addEventListener('click', showChartOfAccounts);
-      c.querySelector('[data-open-journals]').addEventListener('click', showJournalEntries);
-    };
-      c.querySelector('[data-open-coa]').addEventListener('click', showChartOfAccounts);
+            c.querySelector('[data-open-coa]').addEventListener('click', showChartOfAccounts);
       c.querySelector('[data-open-journals]').addEventListener('click', showJournalEntries);
       c.querySelector('[data-open-general-ledger]').addEventListener('click', showGeneralLedger);
     };
