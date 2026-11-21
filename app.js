@@ -469,7 +469,49 @@ async function financePage(page,c){
           </div>
         </div>
       </div>
+      <div class="panel">
+        <h3>Submit an expense</h3>
+        <p class="sub">Enter the details for review and approval.</p>
 
+        <form id="expenseSubmitForm" class="form-grid">
+          <label>Expense date
+            <input type="date" name="expense_date" required>
+          </label>
+
+          <label>Category
+            <input type="text" name="category" placeholder="e.g. Transport" required>
+          </label>
+
+          <label>Payee / Supplier
+            <input type="text" name="payee" placeholder="Who is being paid?">
+          </label>
+
+          <label>Amount (KSh)
+            <input type="number" name="amount" min="0.01" step="0.01" required>
+          </label>
+
+          <label>Payment method
+            <select name="payment_method" required>
+              <option value="CASH">Cash</option>
+              <option value="MPESA">M-Pesa</option>
+              <option value="BANK">Bank</option>
+              <option value="PETTY_CASH">Petty Cash</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+
+          <label>Reference
+            <input type="text" name="reference" placeholder="Optional reference">
+          </label>
+
+          <label>Description
+            <textarea name="description" required placeholder="What is this expense for?"></textarea>
+          </label>
+
+          <button type="submit">Submit expense</button>
+          <div id="expenseSubmitMsg" class="notice"></div>
+        </form>
+      </div>
       <div class="stats">
         ${stat(
           'Recent posted expenses',
