@@ -124,6 +124,62 @@
       const recentMembers=members.slice(0,6), recentChamas=chamas.slice(0,6), recentRepayments=repayments.slice(0,8), recentApps=apps.slice(0,6), recentSavings=savings.slice(0,8);
       const memberName=id=>{const m=members.find(x=>x.id===id); return m?.full_name || 'Member record';};
 
+      // Upcoming Chama meetings for the signed-in user's organisations
+      let upcomingMeetings = [];
+      try {
+        const { data: roleRows, error: roleError } = await db
+          .from('user_roles')
+          .select('organization_id')
+          .eq('user_id', auth.data.user.id)
+          .eq('is_active', true);
+
+        if (roleError) throw roleError;
+
+        const orgIds = [...new Set(
+          (roleRows || []).map(r => r.organization_id).filter(Boolean)
+        )];
+
+        if (orgIds.length) {
+          const { data: meetingRows, error: meetingError } = await db
+            .from('chama_meetings')
+            .select('id,organization_id,group_id,meeting_date,meeting_time,venue')
+            .in('organization_id', orgIds)
+            .gte('meeting_date', today)
+            .order('meeting_date', { ascending: true })
+            .order('meeting_time', { ascending: true })
+            .limit(100);
+
+          if (meetingError) throw meetingError;
+
+          const groupIds = [...new Set(
+            (meetingRows || []).map(m => m.group_id).filter(Boolean)
+          )];
+
+          let groupMap = {};
+
+          if (groupIds.length) {
+            const { data: groupRows, error: groupError } = await db
+              .from('chama_groups')
+              .select('id,group_name')
+              .in('id', groupIds)
+              .in('organization_id', orgIds);
+
+            if (groupError) throw groupError;
+
+            groupMap = Object.fromEntries(
+              (groupRows || []).map(g => [g.id, g.group_name])
+            );
+          }
+
+          upcomingMeetings = (meetingRows || []).map(m => ({
+            ...m,
+            group_name: groupMap[m.group_id] || 'Chama group'
+          }));
+        }
+      } catch (e) {
+        errors.push('Upcoming meetings: ' + (e.message || String(e)));
+                                          }
+       
       // Existing six-month chart history retained, now using the main GORA tables.
       const monthKeys=monthsBack(6);
       const savingsTrend=monthKeys.map(k=>{
