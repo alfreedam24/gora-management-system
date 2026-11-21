@@ -774,71 +774,153 @@ async function financePage(page,c){
   
 
   
+  
   if(page==='Accounting'){
-    c.innerHTML=`
-      <div class="page-heading">
-        <div>
-          <h2>Accounting &amp; Reconciliation Centre</h2>
-          <div class="sub">
-            Double-entry accounting, reconciliation, cash controls and financial reporting.
+    const showMenu = () => {
+      c.innerHTML=`
+        <div class="page-heading">
+          <div>
+            <h2>Accounting &amp; Reconciliation Centre</h2>
+            <div class="sub">
+              Double-entry accounting, reconciliation, cash controls and financial reporting.
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="notice">
-        This is the Accounting Centre menu. Each module will be connected
-        to its verified database workflow in stages. No balances are changed
-        by opening this page.
-      </div>
+        <div class="notice">
+          Select a module to open its available workflow.
+          Opening a screen does not change account balances.
+        </div>
 
-      <div style="display:grid;gap:12px">
+        <div style="display:grid;gap:12px">
+          <details class="panel" open>
+            <summary><strong>Accounting &amp; General Ledger</strong></summary>
+            <ul>
+              <li>
+                <button type="button" data-open-coa>
+                  Chart of Accounts
+                </button>
+              </li>
+              <li>Journal Entries</li>
+              <li>General Ledger</li>
+              <li>Trial Balance</li>
+              <li>Profit &amp; Loss Statement</li>
+              <li>Balance Sheet</li>
+              <li>Cash Flow Statement</li>
+              <li>Sub-Ledger to GL Verification</li>
+              <li>Adjusting Journal Entries</li>
+            </ul>
+          </details>
 
-        <details class="panel" open>
-          <summary><strong>Accounting &amp; General Ledger</strong></summary>
-          <ul>
-            <li>Chart of Accounts</li>
-            <li>Journal Entries</li>
-            <li>General Ledger</li>
-            <li>Trial Balance</li>
-            <li>Profit &amp; Loss Statement</li>
-            <li>Balance Sheet</li>
-            <li>Cash Flow Statement</li>
-            <li>Sub-Ledger to GL Verification</li>
-            <li>Adjusting Journal Entries</li>
-          </ul>
-        </details>
+          <details class="panel">
+            <summary><strong>Bank, M-Pesa &amp; Reconciliation</strong></summary>
+            <ul>
+              <li>Bank Reconciliation</li>
+              <li>M-Pesa Reconciliation</li>
+              <li>Cash Reconciliation</li>
+              <li>Statement Import &amp; Matching</li>
+              <li>Exact and Fuzzy Transaction Matching</li>
+              <li>Many-to-One and One-to-Many Matching</li>
+              <li>Suspense &amp; Exceptions</li>
+              <li>Transaction Fees &amp; Tax</li>
+              <li>Reconciliation Aging</li>
+              <li>Duplicate and Reversal Detection</li>
+            </ul>
+          </details>
 
-        <details class="panel">
-          <summary><strong>Bank, M-Pesa &amp; Reconciliation</strong></summary>
-          <ul>
-            <li>Bank Reconciliation</li>
-            <li>M-Pesa Reconciliation</li>
-            <li>Cash Reconciliation</li>
-            <li>Statement Import &amp; Matching</li>
-            <li>Exact and Fuzzy Transaction Matching</li>
-            <li>Many-to-One and One-to-Many Matching</li>
-            <li>Suspense &amp; Exceptions</li>
-            <li>Transaction Fees &amp; Tax</li>
-            <li>Reconciliation Aging</li>
-            <li>Duplicate and Reversal Detection</li>
-          </ul>
-        </details>
+          <details class="panel">
+            <summary><strong>Cash &amp; Branch Control</strong></summary>
+            <ul>
+              <li>Daily Cashbook</li>
+              <li>Cash &amp; M-Pesa Balances</li>
+              <li>Branch Cash Limits</li>
+              <li>Petty Cash Control</li>
+              <li>Daily Reconciliation</li>
+            </ul>
+          </details>
+        </div>
+      `;
 
-        <details class="panel">
-          <summary><strong>Cash &amp; Branch Control</strong></summary>
-          <ul>
-            <li>Daily Cashbook</li>
-            <li>Cash &amp; M-Pesa Balances</li>
-            <li>Branch Cash Limits</li>
-            <li>Petty Cash Control</li>
-            <li>Daily Reconciliation</li>
-          </ul>
-        </details>
+      c.querySelector('[data-open-coa]').addEventListener('click', showChartOfAccounts);
+    };
 
-      </div>
-    `;
+    const showChartOfAccounts = async () => {
+      c.innerHTML=`
+        <div class="page-heading">
+          <div>
+            <h2>Chart of Accounts</h2>
+            <div class="sub">GORA's registered accounting accounts</div>
+          </div>
+        </div>
+        <button type="button" data-back-accounting>
+          ← Back to Accounting
+        </button>
+        <div class="panel">Loading accounts…</div>
+      `;
+
+      c.querySelector('[data-back-accounting]').addEventListener('click', showMenu);
+
+      try {
+        const {data,error}=await db
+          .from('gora_chart_of_accounts')
+          .select('account_code,account_name,account_type,is_active')
+          .order('account_code');
+
+        if(error) throw error;
+
+        c.innerHTML=`
+          <div class="page-heading">
+            <div>
+              <h2>Chart of Accounts</h2>
+              <div class="sub">${data.length} accounts registered</div>
+            </div>
+          </div>
+          <button type="button" data-back-accounting>
+            ← Back to Accounting
+          </button>
+          <div class="tablebox" style="overflow-x:auto">
+            <table style="min-width:650px;width:100%">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Account Name</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.map(a=>`
+                  <tr>
+                    <td>${esc(a.account_code)}</td>
+                    <td>${esc(a.account_name)}</td>
+                    <td>${esc(a.account_type)}</td>
+                    <td>${a.is_active?'Active':'Inactive'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        c.querySelector('[data-back-accounting]').addEventListener('click', showMenu);
+      } catch(e) {
+        c.innerHTML=`
+          <div class="panel">
+            <h3>Could not load Chart of Accounts</h3>
+            <p>${esc(e.message||e)}</p>
+            <button type="button" data-back-accounting>
+              ← Back to Accounting
+            </button>
+          </div>
+        `;
+        c.querySelector('[data-back-accounting]').addEventListener('click', showMenu);
+      }
+    };
+
+    showMenu();
     return;
   }
+
 
   const descriptions={
     'Finance Overview':'A consolidated view of GORA financial performance.',
