@@ -801,7 +801,11 @@ async function financePage(page,c){
                   Chart of Accounts
                 </button>
               </li>
-              <li>Journal Entries</li>
+              <li>
+  <button type="button" data-open-journals>
+    Journal Entries
+  </button>
+</li>
               <li>General Ledger</li>
               <li>Trial Balance</li>
               <li>Profit &amp; Loss Statement</li>
