@@ -117,6 +117,79 @@ async function renderGroups(){const host=$('groups');if(!groups.length){host.inn
 $('createForm').addEventListener('submit',async e=>{e.preventDefault();try{const org=$('org').value;const id=await rpc('create_chama_group',{_organization_id:org,_group_code:val('code'),_group_name:val('name'),_branch_id:val('branch')||null,_meeting_frequency:val('frequency'),_meeting_day:val('day')||null,_target_weekly_savings:Number(val('target')||0),_description:val('description')||null});const extra={registered_on:val('registeredOn'),location:val('location')||null,maximum_members:val('maximum')?Number(val('maximum')):null,meeting_time:val('meetingTime')||null,meeting_venue:val('venue')||null,purpose:val('description')||null,chairperson_name:val('chair')||null,chairperson_phone:val('chairPhone')||null,secretary_name:val('secretary')||null,secretary_phone:val('secretaryPhone')||null,treasurer_name:val('treasurer')||null,treasurer_phone:val('treasurerPhone')||null};const {error}=await db.from('chama_groups').update(extra).eq('id',id).eq('organization_id',org);if(error)throw error;say('Group created and saved as PENDING. Assign approved members before approval.','success');await refreshAll();await openGroup(id)}catch(err){say(err.message||String(err),'error')}});
 async function openGroup(id){try{selected=groups.find(g=>g.id===id);if(!selected){const {data,error}=await db.from('chama_groups').select('*').eq('id',id).single();if(error)throw error;selected=data} $('detail').classList.remove('hidden');$('detailTitle').textContent=selected.group_name;$('detailMeta').textContent=selected.group_code+' · '+selected.status+' · Registered '+selected.registered_on;$('editName').value=selected.group_name||'';$('editLocation').value=selected.location||'';$('editFrequency').value=selected.meeting_frequency||'WEEKLY';$('editDay').value=selected.meeting_day||'';$('editTarget').value=selected.target_weekly_savings??100;$('editTime').value=selected.meeting_time||'';$('editVenue').value=selected.meeting_venue||'';$('editMaximum').value=selected.maximum_members||'';$('editPurpose').value=selected.purpose||selected.description||'';$('editChair').value=selected.chairperson_name||'';$('editChairPhone').value=selected.chairperson_phone||'';$('editSecretary').value=selected.secretary_name||'';$('editSecretaryPhone').value=selected.secretary_phone||'';$('editTreasurer').value=selected.treasurer_name||'';$('editTreasurerPhone').value=selected.treasurer_phone||'';await renderGroupMembers();await renderGroupActions();await loadMeetingHistory();$('detail').scrollIntoView({behavior:'smooth'});}catch(e){say(e.message||String(e),'error')}}
 async function renderGroupMembers(){const {data,error}=await db.from('chama_memberships').select('id,member_id,joined_at,status,left_at,members!inner(id,member_number,full_name,phone,status)').eq('group_id',selected.id).order('joined_at');if(error)throw error;const rows=data||[];$('memberList').innerHTML=rows.length?`<table><thead><tr><th>Member</th><th>Phone</th><th>Joined</th><th>Membership</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.members.full_name)}<div class="muted small">${esc(x.members.member_number||'')}</div></td><td>${esc(x.members.phone||'')}</td><td>${esc(x.joined_at||'')}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted">No members assigned yet.</p>';const active=rows.filter(x=>x.status==='ACTIVE').length;$('profileInfo').innerHTML=[['Active members',active],['Weekly savings target',money(selected.target_weekly_savings)],['Meeting schedule',(selected.meeting_frequency||'WEEKLY')+' '+(selected.meeting_day||'')],['Location',selected.location||'Not set'],['Meeting venue',selected.meeting_venue||'Not set'],['Maximum members',selected.maximum_members||'No limit']].map(x=>`<div class="item"><div class="muted small">${esc(x[0])}</div><strong>${esc(x[1])}</strong></div>`).join('');const choices=members.filter(m=>m.status==='APPROVED'||m.status==='ACTIVE');$('memberSelect').innerHTML='<option value="">Select member</option>'+choices.map(m=>`<option value="${m.id}">${esc(m.full_name)} · ${esc(m.member_number||m.phone||'')}</option>`).join('')}
+  
+async function renderCollectionMembers(){
+  const host=$('collectionMemberRows');
+  if(!$('collectionDate').value)$('collectionDate').value=todayLocal();
+
+  const {data,error}=await db.from('chama_memberships')
+    .select('member_id,joined_at,members!inner(full_name,member_number)')
+    .eq('group_id',selected.id)
+    .eq('organization_id',$('org').value)
+    .eq('status','ACTIVE')
+    .order('joined_at');
+
+  if(error)throw error;
+  const rows=data||[];
+
+  if(!rows.length){
+    host.innerHTML='<p class="muted">No active members in this chama.</p>';
+    updateCollectionTotals();
+    return;
+  }
+
+  host.innerHTML=`<table>
+    <thead><tr>
+      <th>Member</th>
+      <th>Savings (KSh)</th>
+      <th>Loan repayment (KSh)</th>
+    </tr></thead>
+    <tbody>${rows.map(x=>`
+      <tr>
+        <td>
+          <strong>${esc(x.members.full_name)}</strong>
+          <div class="muted small">${esc(x.members.member_number||'')}</div>
+        </td>
+        <td><input type="number" min="0" step="0.01" value="0"
+          data-collection-savings="${x.member_id}" aria-label="Savings for ${esc(x.members.full_name)}"></td>
+        <td><input type="number" min="0" step="0.01" value="0"
+          data-collection-repayment="${x.member_id}" aria-label="Repayment for ${esc(x.members.full_name)}"></td>
+      </tr>`).join('')}</tbody>
+  </table>`;
+
+  host.querySelectorAll('input').forEach(input=>{
+    input.addEventListener('input',updateCollectionTotals);
+  });
+
+  updateCollectionTotals();
+}
+
+function updateCollectionTotals(){
+  const savings=[...document.querySelectorAll('[data-collection-savings]')]
+    .reduce((sum,input)=>sum+Math.max(0,Number(input.value)||0),0);
+
+  const repayments=[...document.querySelectorAll('[data-collection-repayment]')]
+    .reduce((sum,input)=>sum+Math.max(0,Number(input.value)||0),0);
+
+  $('collectionSavingsTotal').textContent=money(savings);
+  $('collectionRepaymentTotal').textContent=money(repayments);
+  $('collectionGrandTotal').textContent=money(savings+repayments);
+}
+ 
+  updateCollectionTotals();
+}
+
+async function renderCollectionMembers(){
+  // your code 1 ends above this
+}
+
+// Code 2 goes here
+$('detail').querySelector('[data-tab="collections"]').addEventListener('click',()=>{
+  renderCollectionMembers().catch(e=>say(e.message||String(e),'error'));
+});
+
+async function renderGroupActions(){
+  
 async function renderGroupActions(){const count=(await memberCounts()).filter(x=>x.group_id===selected.id).length;let html='';if(selected.status==='PENDING'){html+=`<button class="btn" id="approveGroup" ${count<5?'disabled':''}>Approve group (${count}/5 members)</button><button class="btn danger" id="rejectGroup">Reject group</button>`}if(selected.status==='ACTIVE')html+='<button class="btn secondary" id="pauseGroup">Pause group</button>';if(selected.status==='PAUSED')html+='<button class="btn" id="activateGroup">Reactivate group</button>';if(!['CLOSED','REJECTED'].includes(selected.status))html+='<button class="btn danger" id="closeGroup">Close group</button>';if(selected.approved_at)html+=`<span class="muted small">Approved on ${esc(selected.approved_at)}</span>`;if(selected.rejection_reason)html+=`<span class="muted small">Reason: ${esc(selected.rejection_reason)}</span>`;$('groupActions').innerHTML=html;const bind=(id,fn)=>{const el=$(id);if(el)el.addEventListener('click',fn)};bind('approveGroup',async()=>{try{await rpc('approve_chama_group',{_group_id:selected.id});say('Group approved.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}});bind('rejectGroup',async()=>{const reason=prompt('Enter reason for rejecting this group:');if(!reason?.trim())return;try{await rpc('reject_chama_group',{_group_id:selected.id,_reason:reason.trim()});say('Group rejected.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}});bind('pauseGroup',()=>setStatus('PAUSED'));bind('activateGroup',()=>setStatus('ACTIVE'));bind('closeGroup',()=>{if(confirm('Close this group? This changes its status to CLOSED.'))setStatus('CLOSED')})}
 async function setStatus(status){try{const {error}=await db.from('chama_groups').update({status}).eq('id',selected.id).eq('organization_id',$('org').value);if(error)throw error;say('Group status updated to '+status+'.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}}
 $('assignForm').addEventListener('submit',async e=>{e.preventDefault();try{const memberId=val('memberSelect');if(!memberId)throw Error('Choose a member first.');const current=members.find(m=>m.id===memberId);if(current?.chama_group_id===selected.id)throw Error('This member is already linked to this group.');const active=(await memberCounts()).filter(x=>x.group_id===selected.id).length;if(selected.maximum_members&&active>=selected.maximum_members)throw Error('This group has reached its maximum member limit.');await rpc('assign_member_to_chama',{_member_id:memberId,_group_id:selected.id,_joined_at:new Date().toISOString().slice(0,10)});say('Member assigned. Any previous active chama membership is retained as TRANSFERRED.','success');await refreshAll();await openGroup(selected.id)}catch(e){say(e.message||String(e),'error')}});
