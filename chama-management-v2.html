@@ -39,14 +39,58 @@
 <div id="tab-assign" class="hidden"><h3>Assign or transfer a member</h3><p class="muted small">Only approved/active members can be assigned. Previous membership is retained as TRANSFERRED by the database procedure.</p><form id="assignForm"><label>Approved member</label><select id="memberSelect" required></select><button class="btn" type="submit">Assign member to this group</button></form></div>
 <div id="tab-meetings" class="hidden"><h3>Record a meeting</h3><form id="meetingForm"><div class="row"><div><label>Meeting date *</label><input id="meetingDate" type="date" required></div><div><label>Time</label><input id="meetingRecordTime" type="time"></div><div><label>Venue</label><input id="meetingVenue"></div></div><label>Meeting notes</label><textarea id="meetingNotes"></textarea><button class="btn" type="submit">Save meeting</button></form><h3 style="margin-top:18px">Meeting history</h3><div id="meetingList" class="list"></div><div id="attendanceEditor"></div></div>
   <div id="tab-collections" class="hidden">
-  <h3>Chama collections</h3>
-  <p class="muted small">Record and review member collections for this group.</p>
-  <div class="notice">
-    The collection form will be connected to GORA's official savings and loan repayment records.
-  </div>
+ 
+<div id="tab-collections" class="hidden">
+  <h3>Chama Savings & Collection Sheet</h3>
+  <p class="muted small">
+    Record member savings and loan repayments for this group.
+  </p>
+
+  <form id="chamaCollectionForm">
+    <div class="row">
+      <div>
+        <label>Collection date *</label>
+        <input id="collectionDate" type="date" required>
+      </div>
+      <div>
+        <label>Collection reference</label>
+        <input id="collectionReference" placeholder="Optional receipt/reference">
+      </div>
+    </div>
+
+    <div class="notice">
+      Select the date and enter the amounts collected from each member.
+      Savings and loan repayments will be recorded through GORA's official
+      financial transaction processes.
+    </div>
+
+    <div id="collectionMemberRows" class="tablewrap">
+      <p class="muted">Group members will appear here.</p>
+    </div>
+
+    <div class="grid">
+      <div class="notice">
+        <strong>Total savings:</strong>
+        <span id="collectionSavingsTotal">KSh 0.00</span>
+      </div>
+      <div class="notice">
+        <strong>Total loan repayments:</strong>
+        <span id="collectionRepaymentTotal">KSh 0.00</span>
+      </div>
+      <div class="notice">
+        <strong>Total collected:</strong>
+        <span id="collectionGrandTotal">KSh 0.00</span>
+      </div>
+    </div>
+
+    <button class="btn" type="submit" id="saveChamaCollection">
+      Save collection sheet
+    </button>
+  </form>
+
+  <div id="collectionSheetMessage" class="notice hidden"></div>
 </div>
 
-<div id="tab-calendar" class="hidden">
   <h3>Meeting calendar</h3>
   <p class="muted small">View upcoming meetings and meeting history for this group.</p>
   <div id="chamaCalendar" class="list">
