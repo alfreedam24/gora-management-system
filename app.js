@@ -308,7 +308,7 @@ async function applicationsPage(c) {
         .eq('status', 'ACTIVE')),
 
       safe(db.from('loan_applications')
-        .select('id,application_number,borrower_type,member_id,individual_borrower_id,loan_product_id,requested_amount,requested_duration,requested_duration_unit,purpose,status,applied_at')
+        .select('id,application_number,borrower_type,member_id,individual_borrower_id,loan_product_id,requested_amount,requested_duration,requested_duration_unit,purpose,status,applied_at,approved_amount,approved_interest_rate,approved_interest_method,approved_interest_period,approved_duration,approved_duration_unit,approved_repayment_frequency,approved_total_interest,approved_total_repayment,approved_processing_fee_type,approved_processing_fee_value,reviewed_by,reviewed_at,approved_by,approved_at')
         .eq('organization_id', orgId)
         .order('applied_at', { ascending: false })
         .limit(100))
