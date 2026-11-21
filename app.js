@@ -847,7 +847,7 @@ async function financePage(page,c){
 
       c.querySelector('[data-open-coa]').addEventListener('click', showChartOfAccounts);
     };
-
+c.querySelector('[data-open-journals]').addEventListener('click', showJournalEntries);
     const showChartOfAccounts = async () => {
       c.innerHTML=`
         <div class="page-heading">
@@ -921,6 +921,257 @@ async function financePage(page,c){
       }
     };
 
+    const showJournalEntries = async () => {
+      c.innerHTML = `
+        <div class="page-heading">
+          <div>
+            <h2>Journal Entries</h2>
+            <div class="sub">Create balanced journal entries and post them securely.</div>
+          </div>
+        </div>
+        <button type="button" data-back-accounting>
+          ← Back to Accounting
+        </button>
+        <div class="panel">Loading journal entries…</div>
+      `;
+
+      c.querySelector('[data-back-accounting]')
+        .addEventListener('click', showMenu);
+
+      try {
+        const [accountsResult, journalsResult] = await Promise.all([
+          db.from('gora_chart_of_accounts')
+            .select('id,account_code,account_name')
+            .eq('is_active', true)
+            .order('account_code'),
+
+          db.from('gora_journal_entries')
+            .select('id,journal_number,entry_date,description,status')
+            .order('created_at', {ascending:false})
+        ]);
+
+        if(accountsResult.error) throw accountsResult.error;
+        if(journalsResult.error) throw journalsResult.error;
+
+        const accounts = accountsResult.data || [];
+        const journals = journalsResult.data || [];
+
+        c.innerHTML = `
+          <div class="page-heading">
+            <div>
+              <h2>Journal Entries</h2>
+              <div class="sub">Create and manage double-entry records.</div>
+            </div>
+          </div>
+
+          <button type="button" data-back-accounting>
+            ← Back to Accounting
+          </button>
+
+          <div class="panel">
+            <h3>Create Journal Entry</h3>
+
+            <form data-journal-form>
+              <label>
+                Entry date
+                <input name="entry_date" type="date"
+                  value="${new Date().toISOString().slice(0,10)}"
+                  required>
+              </label>
+
+              <label>
+                Description
+                <input name="description" maxlength="250"
+                  placeholder="Reason for this transaction"
+                  required>
+              </label>
+
+              <label>
+                Debit account
+                <select name="debit_account" required>
+                  <option value="">Choose account</option>
+                  ${accounts.map(a=>`
+                    <option value="${esc(a.id)}">
+                      ${esc(a.account_code)} - ${esc(a.account_name)}
+                    </option>
+                  `).join('')}
+                </select>
+              </label>
+
+              <label>
+                Credit account
+                <select name="credit_account" required>
+                  <option value="">Choose account</option>
+                  ${accounts.map(a=>`
+                    <option value="${esc(a.id)}">
+                      ${esc(a.account_code)} - ${esc(a.account_name)}
+                    </option>
+                  `).join('')}
+                </select>
+              </label>
+
+              <label>
+                Amount (KSh)
+                <input name="amount" type="number"
+                  min="0.01" step="0.01" required>
+              </label>
+
+              <button class="primary" type="submit">
+                Save Draft
+              </button>
+              <p data-journal-message class="message"></p>
+            </form>
+          </div>
+
+          <div class="panel">
+            <h3>Journal History</h3>
+            <div class="tablebox" style="overflow-x:auto">
+              <table style="min-width:650px;width:100%">
+                <thead>
+                  <tr>
+                    <th>Journal No.</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${journals.map(j=>`
+                    <tr>
+                      <td>${esc(j.journal_number)}</td>
+                      <td>${esc(j.entry_date)}</td>
+                      <td>${esc(j.description)}</td>
+                      <td>${esc(j.status)}</td>
+                      <td>
+                        ${j.status==='draft'?`
+                          <button type="button"
+                            data-post-journal="${esc(j.id)}">
+                            Post
+                          </button>
+                        `:'—'}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+
+        c.querySelector('[data-back-accounting]')
+          .addEventListener('click', showMenu);
+
+        c.querySelector('[data-journal-form]')
+          .addEventListener('submit', async e=>{
+            e.preventDefault();
+
+            const form = e.currentTarget;
+            const msg = c.querySelector('[data-journal-message]');
+            const values = new FormData(form);
+
+            const debitAccount = values.get('debit_account');
+            const creditAccount = values.get('credit_account');
+            const amount = Number(values.get('amount'));
+
+            if(debitAccount===creditAccount){
+              msg.textContent='Choose two different accounts.';
+              return;
+            }
+
+            if(!Number.isFinite(amount)||amount<=0){
+              msg.textContent='Enter a valid amount.';
+              return;
+            }
+
+            const {data:authData,error:authError} =
+              await db.auth.getUser();
+
+            if(authError||!authData.user){
+              msg.textContent='Please sign in again.';
+              return;
+            }
+
+            const {data:entry,error:entryError}=await db
+              .from('gora_journal_entries')
+              .insert({
+                entry_date:values.get('entry_date'),
+                description:values.get('description').trim(),
+                created_by:authData.user.id,
+                status:'draft'
+              })
+              .select('id')
+              .single();
+
+            if(entryError){
+              msg.textContent=entryError.message;
+              return;
+            }
+
+            const {error:linesError}=await db
+              .from('gora_journal_entry_lines')
+              .insert([
+                {
+                  journal_entry_id:entry.id,
+                  account_id:debitAccount,
+                  debit:amount,
+                  credit:0
+                },
+                {
+                  journal_entry_id:entry.id,
+                  account_id:creditAccount,
+                  debit:0,
+                  credit:amount
+                }
+              ]);
+
+            if(linesError){
+              msg.textContent='Draft saved, but lines failed: '
+                +linesError.message;
+              return;
+            }
+
+            await showJournalEntries();
+          });
+
+        c.querySelectorAll('[data-post-journal]')
+          .forEach(button=>{
+            button.addEventListener('click',async()=>{
+              button.disabled=true;
+
+              const {error}=await db.rpc(
+                'gora_post_journal_entry',
+                {
+                  p_journal_entry_id:button.dataset.postJournal
+                }
+              );
+
+              if(error){
+                alert('Could not post journal: '+error.message);
+                button.disabled=false;
+                return;
+              }
+
+              await showJournalEntries();
+            });
+          });
+
+      } catch(e) {
+        c.innerHTML=`
+          <div class="panel">
+            <h3>Could not load Journal Entries</h3>
+            <p>${esc(e.message||e)}</p>
+            <button type="button" data-back-accounting>
+              ← Back to Accounting
+            </button>
+          </div>
+        `;
+
+        c.querySelector('[data-back-accounting]')
+          .addEventListener('click', showMenu);
+      }
+    };
+                  
     showMenu();
     return;
   }
