@@ -495,28 +495,25 @@ async function financePage(page,c){
     return;
           }
   
+  
   if(page==='Petty Cash'){
-    const {data:authData,error:authError}=await db.auth.getUser();
+    c.innerHTML=`
+      <div class="page-heading">
+        <div>
+          <h2>Petty Cash</h2>
+          <div class="sub">
+            Petty cash transaction entry is being restored.
+          </div>
+        </div>
+      </div>
+      <div class="notice">
+        The transaction form is not available yet.
+        Please do not record petty cash manually here.
+      </div>
+    `;
+    return;
+  }
 
-    if(authError || !authData?.user){
-      throw new Error('Please sign in again.');
-    }
-
-    const assignments=await safe(
-      db.from('user_roles')
-        .select('organization_id')
-        .eq('user_id',authData.user.id)
-        .eq('is_active',true)
-    );
-
-    const orgIds=[...new Set(
-      (assignments.data||[])
-        .map(x=>x.organization_id)
-        .filter(Boolean)
-    )];
-
-    if(orgIds.length!==1){
-      throw new Error(
     
   
   const descriptions={
