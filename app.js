@@ -851,7 +851,10 @@ async function financePage(page,c){
       c.querySelector('[data-open-coa]').addEventListener('click', showChartOfAccounts);
       c.querySelector('[data-open-journals]').addEventListener('click', showJournalEntries);
     };
-c.querySelector('[data-open-general-ledger]').addEventListener('click', showGeneralLedger);
+      c.querySelector('[data-open-coa]').addEventListener('click', showChartOfAccounts);
+      c.querySelector('[data-open-journals]').addEventListener('click', showJournalEntries);
+      c.querySelector('[data-open-general-ledger]').addEventListener('click', showGeneralLedger);
+    };
     const showChartOfAccounts = async () => {
       c.innerHTML=`
         <div class="page-heading">
