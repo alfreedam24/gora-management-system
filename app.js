@@ -524,7 +524,7 @@ async function financePage(page,c){
       <div class="notice">
         Only posted journal entries linked to EXPENSE accounts are included.
         Expense totals cover the loaded entries only.
-        This page is currently a report, not an expense-entry or approval form.
+        Expense requests can be submitted here for review. Only posted journal entries appear in the expense report below.
       </div>
 
       ${table(
