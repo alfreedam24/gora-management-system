@@ -189,8 +189,10 @@ async function renderCollectionMembers(){
 
         <td><input type="number" min="0" step="0.01" value="0"
           data-collection-repayment="${x.member_id}" aria-label="Repayment for ${esc(x.members.full_name)}"></td>
-      </tr>`).join('')}</tbody>
-  
+      
+    </tbody>
+  </table>`;
+
   host.querySelectorAll('input').forEach(input=>{
     input.addEventListener('input',()=>{
       if(input.matches('[data-collection-savings]') && Number(input.value)>500){
@@ -200,8 +202,6 @@ async function renderCollectionMembers(){
     });
   });
 
-    input.addEventListener('input',updateCollectionTotals);
-  });
 
   updateCollectionTotals();
 }
