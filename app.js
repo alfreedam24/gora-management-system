@@ -495,6 +495,122 @@ async function financePage(page,c){
     return;
           }
   
+  if(page==='Petty Cash'){
+    const {data:authData,error:authError}=await db.auth.getUser();
+
+    if(authError || !authData?.user){
+      throw new Error('Please sign in again.');
+    }
+
+    const assignments=await safe(
+      db.from('user_roles')
+        .select('organization_id')
+        .eq('user_id',authData.user.id)
+        .eq('is_active',true)
+    );
+
+    const orgIds=[...new Set(
+      (assignments.data||[])
+        .map(x=>x.organization_id)
+        .filter(Boolean)
+    )];
+
+    if(orgIds.length!==1){
+      throw new Error(
+        'Your staff account must have exactly one active organisation assignment.'
+      );
+    }
+
+    const result=await safe(
+      db.from('petty_cash_transactions')
+        .select(`
+          transaction_date,
+          transaction_type,
+          amount,
+          category,
+          payment_method,
+          reference,
+          description,
+          status
+        `)
+        .eq('organization_id',orgIds[0])
+        .order('transaction_date',{ascending:false})
+        .limit(200)
+    );
+
+    const transactions=result.data||[];
+
+    const posted=transactions.filter(x=>x.status==='POSTED');
+    const pending=transactions.filter(x=>x.status==='PENDING');
+
+    const balance=posted.reduce((sum,x)=>{
+      const amount=Number(x.amount||0);
+
+      if(x.transaction_type==='OPENING_BALANCE' ||
+         x.transaction_type==='CASH_RECEIVED'){
+        return sum+amount;
+      }
+
+      if(x.transaction_type==='EXPENSE_PAID' ||
+         x.transaction_type==='CASH_RETURNED'){
+        return sum-amount;
+      }
+
+      return sum;
+    },0);
+
+    const rows=transactions.map(x=>({
+      date:esc(x.transaction_date),
+      type:esc(x.transaction_type),
+      category:esc(x.category||'—'),
+      amount:cash(x.amount),
+      status:esc(x.status),
+      reference:esc(x.reference||'—'),
+      description:esc(x.description)
+    }));
+
+    c.innerHTML=`
+      <div class="page-heading">
+        <div>
+          <h2>Petty Cash</h2>
+          <div class="sub">
+            Petty cash activity and posted balance.
+          </div>
+        </div>
+      </div>
+
+      <div class="stats">
+        ${stat(
+          'Posted petty cash balance',
+          cash(balance),
+          'Calculated from posted transactions loaded',
+          'blue'
+        )}
+        ${stat(
+          'Pending transactions',
+          String(pending.length),
+          'Awaiting approval',
+          'good'
+        )}
+      </div>
+
+      <div class="notice">
+        Balance includes posted opening balances and cash received,
+        less posted expenses and cash returned.
+        Pending and approved transactions are not included.
+        This page is currently read-only.
+      </div>
+
+      ${table(
+        'Recent petty cash transactions',
+        ['date','type','category','amount','status','reference','description'],
+        rows
+      )}
+    `;
+
+    return;
+    }
+  
   const descriptions={
     'Finance Overview':'A consolidated view of GORA financial performance.',
     'Income':'Income will be calculated from verified posted accounting entries.',
