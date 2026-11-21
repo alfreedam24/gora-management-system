@@ -1,7 +1,49 @@
 const $=id=>document.getElementById(id);let db=null,profile=null;
 const cash=n=>new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES',maximumFractionDigits:0}).format(Number(n||0));
-function connect(){const u=localStorage.getItem('gora_url'),k=localStorage.getItem('gora_key');if(!u||!k||!window.supabase)return false;db=window.supabase.createClient(u,k);return true}
-$('save').onclick=()=>{localStorage.setItem('gora_url',$('url').value.trim());localStorage.setItem('gora_key',$('key').value.trim());$('msg').textContent=connect()?'Connection settings saved on this device.':'Enter both settings.'};
+
+function connect(){
+  const u=localStorage.getItem('gora_url');
+  const k=localStorage.getItem('gora_key');
+
+  if(!u||!k||!window.supabase)return false;
+
+  db=window.supabase.createClient(u.replace(/\/+$/,''),k);
+  return true;
+}
+
+$('save').onclick=async()=>{
+  const u=$('url').value.trim().replace(/\/+$/,'');
+  const k=$('key').value.trim();
+
+  if(!u||!k){
+    $('msg').textContent='Enter both the Supabase URL and public key.';
+    return;
+  }
+
+  localStorage.setItem('gora_url',u);
+  localStorage.setItem('gora_key',k);
+
+  if(!connect()){
+    $('msg').textContent='Supabase client could not be loaded.';
+    return;
+  }
+
+  $('msg').textContent='Testing Supabase connection...';
+
+  try{
+    const response=await fetch(u+'/auth/v1/health',{
+      headers:{apikey:k}
+    });
+
+    if(!response.ok){
+      throw new Error('HTTP '+response.status);
+    }
+
+    $('msg').textContent='Supabase is responding. Connection settings saved.';
+  }catch(error){
+    $('msg').textContent='Supabase connection failed: '+error.message;
+  }
+};
 
 async function openWorkspace(user){
   const p = await db.from('profiles')
