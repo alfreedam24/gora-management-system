@@ -228,6 +228,148 @@ async function financePage(page,c){
     return;
   }
 
+  if(page==='Income'){
+    const {data:authData,error:authError}=await db.auth.getUser();
+
+    if(authError || !authData?.user){
+      throw new Error('Please sign in again.');
+    }
+
+    const assignments=await safe(
+      db.from('user_roles')
+        .select('organization_id')
+        .eq('user_id',authData.user.id)
+        .eq('is_active',true)
+    );
+
+    const orgIds=[...new Set(
+      (assignments.data||[])
+        .map(x=>x.organization_id)
+        .filter(Boolean)
+    )];
+
+    if(orgIds.length!==1){
+      throw new Error(
+        'Your staff account must have exactly one active organisation assignment.'
+      );
+    }
+
+    const result=await safe(
+      db.from('journal_entries')
+        .select(`
+          entry_date,
+          entry_number,
+          description,
+          source_type,
+          status,
+          journal_lines(
+            debit,
+            credit,
+            financial_accounts(
+              account_code,
+              account_name,
+              account_type,
+              normal_balance
+            )
+          )
+        `)
+        .eq('organization_id',orgIds[0])
+        .eq('status','POSTED')
+        .order('entry_date',{ascending:false})
+        .limit(200)
+    );
+
+    const entries=result.data||[];
+
+    const incomeRows=entries.map(entry=>{
+      const lines=(entry.journal_lines||[]).filter(line=>{
+        const account=Array.isArray(line.financial_accounts)
+          ? line.financial_accounts[0]
+          : line.financial_accounts;
+
+        return account && account.account_type==='INCOME';
+      });
+
+      const amount=lines.reduce(
+        (sum,line)=>
+          sum+Number(line.credit||0)-Number(line.debit||0),
+        0
+      );
+
+      return {
+        date:entry.entry_date,
+        entry:entry.entry_number,
+        source:entry.source_type||'Journal entry',
+        amount,
+        description:entry.description||''
+      };
+    }).filter(x=>x.amount!==0);
+
+    const monthKey=new Intl.DateTimeFormat('en-CA',{
+      timeZone:'Africa/Nairobi',
+      year:'numeric',
+      month:'2-digit'
+    }).format(new Date());
+
+    const recentTotal=incomeRows.reduce(
+      (sum,x)=>sum+x.amount,
+      0
+    );
+
+    const monthTotal=incomeRows
+      .filter(x=>String(x.date||'').startsWith(monthKey))
+      .reduce((sum,x)=>sum+x.amount,0);
+
+    const rows=incomeRows.map(x=>({
+      date:esc(x.date),
+      entry:esc(x.entry),
+      source:esc(x.source),
+      amount:cash(x.amount),
+      description:esc(x.description)
+    }));
+
+    c.innerHTML=`
+      <div class="page-heading">
+        <div>
+          <h2>Income</h2>
+          <div class="sub">
+            Verified income from posted accounting journal entries.
+          </div>
+        </div>
+      </div>
+
+      <div class="stats">
+        ${stat(
+          'Recent posted income',
+          cash(recentTotal),
+          'From up to 200 posted journal entries',
+          'good'
+        )}
+        ${stat(
+          'Month-to-date income',
+          cash(monthTotal),
+          'Within the loaded journal entries',
+          'blue'
+        )}
+      </div>
+
+      <div class="notice">
+        Only posted journal entries linked to INCOME accounts are included.
+        Loan principal, member savings and GORA capital are not income.
+        Totals cover the loaded entries only; they are not a complete
+        lifetime income total.
+      </div>
+
+      ${table(
+        'Recent income entries',
+        ['date','entry','source','amount','description'],
+        rows
+      )}
+    `;
+
+    return;
+  }
+    
   const descriptions={
     'Finance Overview':'A consolidated view of GORA financial performance.',
     'Income':'Income will be calculated from verified posted accounting entries.',
