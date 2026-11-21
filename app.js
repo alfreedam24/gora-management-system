@@ -534,6 +534,73 @@ async function financePage(page,c){
       )}
     `;
 
+    const expenseSubmitForm=c.querySelector('#expenseSubmitForm');
+
+    if(expenseSubmitForm){
+      expenseSubmitForm.addEventListener('submit',async e=>{
+        e.preventDefault();
+
+        const f=new FormData(expenseSubmitForm);
+        const submitBtn=expenseSubmitForm.querySelector('button[type="submit"]');
+        const msg=c.querySelector('#expenseSubmitMsg');
+
+        submitBtn.disabled=true;
+        msg.textContent='Submitting expense for review...';
+
+        try{
+          const {data:authData,error:authError}=await db.auth.getUser();
+
+          if(authError || !authData?.user){
+            throw new Error('Please sign in again.');
+          }
+
+          const assignments=await safe(
+            db.from('user_roles')
+              .select('organization_id')
+              .eq('user_id',authData.user.id)
+              .eq('is_active',true)
+          );
+
+          const orgIds=[...new Set(
+            (assignments.data||[])
+              .map(x=>x.organization_id)
+              .filter(Boolean)
+          )];
+
+          if(orgIds.length!==1){
+            throw new Error(
+              'Your staff account must have exactly one active organisation assignment.'
+            );
+          }
+
+          await safe(
+            db.rpc('submit_expense_request',{
+              p_organization_id:orgIds[0],
+              p_branch_id:null,
+              p_expense_date:f.get('expense_date'),
+              p_category:f.get('category').trim(),
+              p_payee:f.get('payee')?.trim()||null,
+              p_amount:Number(f.get('amount')),
+              p_payment_method:f.get('payment_method'),
+              p_reference:f.get('reference')?.trim()||null,
+              p_description:f.get('description').trim(),
+              p_receipt_path:null
+            })
+          );
+
+          msg.textContent=
+            'Expense submitted successfully. It is pending review and approval.';
+
+          expenseSubmitForm.reset();
+
+        }catch(err){
+          msg.textContent='Could not submit: '+(err.message||err);
+        }finally{
+          submitBtn.disabled=false;
+        }
+      });
+    }
+    
     return;
           }
   
