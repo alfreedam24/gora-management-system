@@ -370,6 +370,131 @@ async function financePage(page,c){
     return;
   }
     
+  if(page==='Expenses'){
+    const {data:authData,error:authError}=await db.auth.getUser();
+
+    if(authError || !authData?.user){
+      throw new Error('Please sign in again.');
+    }
+
+    const assignments=await safe(
+      db.from('user_roles')
+        .select('organization_id')
+        .eq('user_id',authData.user.id)
+        .eq('is_active',true)
+    );
+
+    const orgIds=[...new Set(
+      (assignments.data||[])
+        .map(x=>x.organization_id)
+        .filter(Boolean)
+    )];
+
+    if(orgIds.length!==1){
+      throw new Error(
+        'Your staff account must have exactly one active organisation assignment.'
+      );
+    }
+
+    const result=await safe(
+      db.from('journal_entries')
+        .select(`
+          entry_date,
+          entry_number,
+          description,
+          source_type,
+          status,
+          journal_lines(
+            debit,
+            credit,
+            financial_accounts(
+              account_code,
+              account_name,
+              account_type,
+              normal_balance
+            )
+          )
+        `)
+        .eq('organization_id',orgIds[0])
+        .eq('status','POSTED')
+        .order('entry_date',{ascending:false})
+        .limit(200)
+    );
+
+    const entries=result.data||[];
+
+    const expenseRows=entries.map(entry=>{
+      const lines=(entry.journal_lines||[]).filter(line=>{
+        const account=Array.isArray(line.financial_accounts)
+          ? line.financial_accounts[0]
+          : line.financial_accounts;
+
+        return account && account.account_type==='EXPENSE';
+      });
+
+      const amount=lines.reduce(
+        (sum,line)=>
+          sum+Number(line.debit||0)-Number(line.credit||0),
+        0
+      );
+
+      return {
+        date:entry.entry_date,
+        entry:entry.entry_number,
+        source:entry.source_type||'Journal entry',
+        amount,
+        description:entry.description||''
+      };
+    }).filter(x=>x.amount!==0);
+
+    const totalExpenses=expenseRows.reduce(
+      (sum,x)=>sum+x.amount,
+      0
+    );
+
+    const rows=expenseRows.map(x=>({
+      date:esc(x.date),
+      entry:esc(x.entry),
+      source:esc(x.source),
+      amount:cash(x.amount),
+      description:esc(x.description)
+    }));
+
+    c.innerHTML=`
+      <div class="page-heading">
+        <div>
+          <h2>Expenses</h2>
+          <div class="sub">
+            Verified expenses from posted accounting journal entries.
+          </div>
+        </div>
+      </div>
+
+      <div class="stats">
+        ${stat(
+          'Recent posted expenses',
+          cash(totalExpenses),
+          'From up to 200 posted journal entries',
+          'blue'
+        )}
+      </div>
+
+      <div class="notice">
+        Only posted journal entries linked to EXPENSE accounts are included.
+        Expense totals cover the loaded entries only.
+        This page is currently a report, not an expense-entry or approval form.
+      </div>
+
+      ${table(
+        'Recent expense entries',
+        ['date','entry','source','amount','description'],
+        rows
+      )}
+    `;
+
+    return;
+          }
+  
   const descriptions={
     'Finance Overview':'A consolidated view of GORA financial performance.',
     'Income':'Income will be calculated from verified posted accounting entries.',
