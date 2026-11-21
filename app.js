@@ -1038,11 +1038,11 @@ async function loanAccountsPage(c) {
         shortened record IDs, not official account numbers.
       </div>
 
-      <div class="tablebox">
+      <div class="tablebox" style="overflow-x:auto; width:100%; display:block;">
         <div class="table-head">
           <h3>Loan account records</h3>
         </div>
-        <table>
+        <table style="min-width:1050px; width:100%;">
           <thead>
             <tr>
               <th>Loan reference</th>
