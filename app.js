@@ -784,67 +784,7 @@ async function financePage(page,c){
         <details class="panel">
           <summary><strong>Cash &amp; Branch Control</strong></summary>
           <ul>
-            <li>Teller Till &amp; Officer Floats</li>
-            <li>Opening Float and Daily Cash Count</li>
-            <li>Branch Vault</li>
-            <li>Cash in Transit</li>
-            <li>Branch Transfers</li>
-            <li>Petty Cash Reconciliation</li>
-            <li>Cash Shortage and Overage Tracking</li>
-          </ul>
-        </details>
 
-        <details class="panel">
-          <summary><strong>Period Closing &amp; Reviews</strong></summary>
-          <ul>
-            <li>Daily Review</li>
-            <li>Weekly Review</li>
-            <li>Monthly Review</li>
-            <li>Quarterly Review</li>
-            <li>Half-Yearly Review — Every 6 Months</li>
-            <li>Yearly / Year-End Review</li>
-            <li>Period Sign-Off &amp; Closing</li>
-            <li>Income and Expense Closing</li>
-            <li>Retained Earnings / Equity Transfer</li>
-          </ul>
-        </details>
-
-        <details class="panel">
-          <summary><strong>Governance, Audit &amp; Reports</strong></summary>
-          <ul>
-            <li>Maker-Checker Approval</li>
-            <li>Full Audit Trail</li>
-            <li>Variance Reports</li>
-            <li>Suspense Aging Reports</li>
-            <li>Branch &amp; Officer Performance</li>
-            <li>Management Reports</li>
-            <li>Regulatory Reports — As Applicable</li>
-            <li>Daily and Monthly Sign-Offs</li>
-          </ul>
-        </details>
-
-        <details class="panel">
-          <summary><strong>Periodic Review Checklists</strong></summary>
-          <ul>
-            <li>Weekly: Cash, M-Pesa, repayments, savings, petty cash, floats, suspense and arrears</li>
-            <li>Monthly: Bank and M-Pesa reconciliation, Trial Balance, GL, sub-ledgers, P&amp;L and aging</li>
-            <li>Quarterly: Portfolio risk, arrears, provisions, branch variances and unresolved reconciliation</li>
-            <li>Half-Yearly: Financial statements, loan and savings review, physical cash/assets and internal audit</li>
-            <li>Yearly: Year-end Trial Balance, financial statements, balance confirmations, tax and regulatory reports</li>
-          </ul>
-        </details>
-
-      </div>
-
-      <div class="notice">
-        Each review period will include start and end dates, a checklist,
-        unmatched transactions, variances, reports, preparer, reviewer,
-        approver and status: Open, In Progress, Pending Review, Approved
-        or Closed.
-      </div>
-    `;
-    return;
-  }
 
   const descriptions={
     'Finance Overview':'A consolidated view of GORA financial performance.',
