@@ -146,23 +146,73 @@ const pages={
 };
 
 async function financePage(page,c){
-  if(page==='Transactions' || page==='Capital Management'){
-    const r=await safe(
-      db.from('capital_transactions')
-        .select('transaction_date,transaction_type,amount,payment_method,reference,description')
+
+  if(page==='Transactions'){
+    const [repayments,savings,capital]=await Promise.all([
+      safe(db.from('loan_repayments')
+        .select('payment_date,amount,payment_method,reference_number,notes,status')
+        .order('payment_date',{ascending:false})
+        .limit(100)),
+      safe(db.from('savings_transactions')
+        .select('transaction_date,transaction_type,amount,payment_method,reference_number,description,status')
         .order('transaction_date',{ascending:false})
-        .limit(100)
-    );
-    const rows=r.data||[];
+        .limit(100)),
+      safe(db.from('capital_transactions')
+        .select('transaction_date,transaction_type,amount,payment_method,reference,description,status')
+        .order('transaction_date',{ascending:false})
+        .limit(100))
+    ]);
+
+    const rows=[
+      ...(repayments.data||[]).map(x=>({
+        date:x.payment_date,
+        type:'Loan repayment',
+        amount:cash(x.amount),
+        method:x.payment_method,
+        reference:x.reference_number,
+        status:x.status,
+        description:x.notes
+      })),
+      ...(savings.data||[]).map(x=>({
+        date:x.transaction_date,
+        type:'Savings - '+x.transaction_type,
+        amount:cash(x.amount),
+        method:x.payment_method,
+        reference:x.reference_number,
+        status:x.status,
+        description:x.description
+      })),
+      ...(capital.data||[]).map(x=>({
+        date:x.transaction_date,
+        type:'Capital - '+x.transaction_type,
+        amount:cash(x.amount),
+        method:x.payment_method,
+        reference:x.reference,
+        status:x.status,
+        description:x.description
+      }))
+    ].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,100);
+
     c.innerHTML=`
       <div class="page-heading">
-        <div><h2>${page}</h2><div class="sub">Capital movements recorded in GORA.</div></div>
+        <div>
+          <h2>Transactions</h2>
+          <div class="sub">Recent financial activity across GORA.</div>
+        </div>
       </div>
-      <div class="notice">These are capital transactions, not a complete list of all income, expenses or loan repayments.</div>
-      ${table('Capital transaction records',['transaction_date','transaction_type','amount','payment_method','reference','description'],rows)}
+      <div class="notice">
+        This is a view-only activity list from loan repayments,
+        savings transactions and capital transactions.
+        Income, expenses and petty cash will be connected
+        through their dedicated workflows.
+      </div>
+      ${table('Recent transaction activity',
+        ['date','type','amount','method','reference','status','description'],
+        rows)}
     `;
     return;
   }
+
 
   if(page==='Daily Reconciliation'){
     const r=await safe(
