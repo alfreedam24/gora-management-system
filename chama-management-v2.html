@@ -67,20 +67,59 @@
       <p class="muted">Group members will appear here.</p>
     </div>
 
+    
+    <h3>Savings collection</h3>
     <div class="grid">
       <div class="notice">
-        <strong>Total savings:</strong>
+        <strong>Expected savings:</strong>
+        <span id="collectionExpectedSavings">KSh 0.00</span>
+      </div>
+      <div class="notice">
+        <strong>Actual savings:</strong>
         <span id="collectionSavingsTotal">KSh 0.00</span>
       </div>
       <div class="notice">
-        <strong>Total loan repayments:</strong>
+        <strong>Savings outstanding:</strong>
+        <span id="collectionSavingsOutstanding">KSh 0.00</span>
+      </div>
+    </div>
+
+    <h3>Loan repayment collection</h3>
+    <div class="grid">
+      <div class="notice">
+        <strong>Expected repayments:</strong>
+        <span id="collectionExpectedRepayment">KSh 0.00</span>
+      </div>
+      <div class="notice">
+        <strong>Actual repayments:</strong>
         <span id="collectionRepaymentTotal">KSh 0.00</span>
       </div>
       <div class="notice">
-        <strong>Total collected:</strong>
-        <span id="collectionGrandTotal">KSh 0.00</span>
+        <strong>Repayments outstanding:</strong>
+        <span id="collectionRepaymentOutstanding">KSh 0.00</span>
       </div>
     </div>
+
+    <h3>Overall collection</h3>
+    <div class="grid">
+      <div class="notice">
+        <strong>Expected collection:</strong>
+        <span id="collectionExpectedGrand">KSh 0.00</span>
+      </div>
+      <div class="notice">
+        <strong>Actual collected:</strong>
+        <span id="collectionGrandTotal">KSh 0.00</span>
+      </div>
+      <div class="notice">
+        <strong>Total outstanding:</strong>
+        <span id="collectionGrandOutstanding">KSh 0.00</span>
+      </div>
+      <div class="notice">
+        <strong>Collected above target:</strong>
+        <span id="collectionOverTarget">KSh 0.00</span>
+      </div>
+    </div>
+
 
     <button class="btn" type="submit" id="saveChamaCollection">
       Save collection sheet
