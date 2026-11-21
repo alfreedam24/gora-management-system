@@ -77,10 +77,27 @@ const specs = [
       const data={}; const errors=[];
       specs.forEach((s,i)=>{data[s[0]]=loaded[i].data; if(loaded[i].error) errors.push(`${s[0]}: ${loaded[i].error}`);});
 
-      const members=data.members, chamas=data.chamas, loans=data.loans, repayments=data.repayments,
-        apps=data.loan_applications, installments=data.installment_balances, savings=data.savings_transactions,
-        cashbook=data.cashbook, petty=data.petty_cash_transactions, membershipPayments=data.membership_payments,
-        fines=data.member_fines, finePayments=data.fine_payments;
+      const members = data.members || [];
+const chamas = data.chamas || [];
+const loans = data.loans || [];
+const repayments = data.repayments || [];
+const apps = data.loan_applications || [];
+
+const installments = data.installments || [];
+const allocations = data.allocations || [];
+
+const savingsAccounts = data.savings_accounts || [];
+const savings = data.savings_transactions || [];
+
+const reconciliations = data.reconciliations || [];
+const capital = data.capital || [];
+const petty = data.petty_cash || [];
+
+// These legacy sources do not exist in the verified schema.
+const cashbook = [];
+const membershipPayments = [];
+const fines = [];
+const finePayments = [];
       const today=dayKey(new Date());
       const startWeek=(()=>{const d=new Date(); d.setHours(0,0,0,0); const offset=(d.getDay()+6)%7; d.setDate(d.getDate()-offset); return dayKey(d);})();
       const startMonth=today.slice(0,7)+'-01';
