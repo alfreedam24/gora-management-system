@@ -730,12 +730,127 @@ async function financePage(page,c){
 
     
   
+
+  if(page==='Accounting'){
+    c.innerHTML=`
+      <div class="page-heading">
+        <div>
+          <h2>Accounting &amp; Reconciliation Centre</h2>
+          <div class="sub">
+            Double-entry accounting, reconciliation, cash controls and financial reporting.
+          </div>
+        </div>
+      </div>
+
+      <div class="notice">
+        This is the Accounting Centre menu. Each module will be connected
+        to its verified database workflow in stages. No balances are changed
+        by opening this page.
+      </div>
+
+      <div style="display:grid;gap:12px">
+
+        <details class="panel" open>
+          <summary><strong>Accounting &amp; General Ledger</strong></summary>
+          <ul>
+            <li>Chart of Accounts</li>
+            <li>Journal Entries</li>
+            <li>General Ledger</li>
+            <li>Trial Balance</li>
+            <li>Profit &amp; Loss Statement</li>
+            <li>Balance Sheet</li>
+            <li>Cash Flow Statement</li>
+            <li>Sub-Ledger to GL Verification</li>
+            <li>Adjusting Journal Entries</li>
+          </ul>
+        </details>
+
+        <details class="panel">
+          <summary><strong>Bank, M-Pesa &amp; Reconciliation</strong></summary>
+          <ul>
+            <li>Bank Reconciliation</li>
+            <li>M-Pesa Reconciliation</li>
+            <li>Cash Reconciliation</li>
+            <li>Statement Import &amp; Matching</li>
+            <li>Exact and Fuzzy Transaction Matching</li>
+            <li>Many-to-One and One-to-Many Matching</li>
+            <li>Suspense &amp; Exceptions</li>
+            <li>Transaction Fees &amp; Tax</li>
+            <li>Reconciliation Aging</li>
+            <li>Duplicate and Reversal Detection</li>
+          </ul>
+        </details>
+
+        <details class="panel">
+          <summary><strong>Cash &amp; Branch Control</strong></summary>
+          <ul>
+            <li>Teller Till &amp; Officer Floats</li>
+            <li>Opening Float and Daily Cash Count</li>
+            <li>Branch Vault</li>
+            <li>Cash in Transit</li>
+            <li>Branch Transfers</li>
+            <li>Petty Cash Reconciliation</li>
+            <li>Cash Shortage and Overage Tracking</li>
+          </ul>
+        </details>
+
+        <details class="panel">
+          <summary><strong>Period Closing &amp; Reviews</strong></summary>
+          <ul>
+            <li>Daily Review</li>
+            <li>Weekly Review</li>
+            <li>Monthly Review</li>
+            <li>Quarterly Review</li>
+            <li>Half-Yearly Review — Every 6 Months</li>
+            <li>Yearly / Year-End Review</li>
+            <li>Period Sign-Off &amp; Closing</li>
+            <li>Income and Expense Closing</li>
+            <li>Retained Earnings / Equity Transfer</li>
+          </ul>
+        </details>
+
+        <details class="panel">
+          <summary><strong>Governance, Audit &amp; Reports</strong></summary>
+          <ul>
+            <li>Maker-Checker Approval</li>
+            <li>Full Audit Trail</li>
+            <li>Variance Reports</li>
+            <li>Suspense Aging Reports</li>
+            <li>Branch &amp; Officer Performance</li>
+            <li>Management Reports</li>
+            <li>Regulatory Reports — As Applicable</li>
+            <li>Daily and Monthly Sign-Offs</li>
+          </ul>
+        </details>
+
+        <details class="panel">
+          <summary><strong>Periodic Review Checklists</strong></summary>
+          <ul>
+            <li>Weekly: Cash, M-Pesa, repayments, savings, petty cash, floats, suspense and arrears</li>
+            <li>Monthly: Bank and M-Pesa reconciliation, Trial Balance, GL, sub-ledgers, P&amp;L and aging</li>
+            <li>Quarterly: Portfolio risk, arrears, provisions, branch variances and unresolved reconciliation</li>
+            <li>Half-Yearly: Financial statements, loan and savings review, physical cash/assets and internal audit</li>
+            <li>Yearly: Year-end Trial Balance, financial statements, balance confirmations, tax and regulatory reports</li>
+          </ul>
+        </details>
+
+      </div>
+
+      <div class="notice">
+        Each review period will include start and end dates, a checklist,
+        unmatched transactions, variances, reports, preparer, reviewer,
+        approver and status: Open, In Progress, Pending Review, Approved
+        or Closed.
+      </div>
+    `;
+    return;
+  }
+
   const descriptions={
     'Finance Overview':'A consolidated view of GORA financial performance.',
     'Income':'Income will be calculated from verified posted accounting entries.',
     'Expenses':'Expenses will be calculated from verified posted accounting entries.',
     'Petty Cash':'Petty cash records require a dedicated, secure transaction workflow.',
-    'Accounting':'The accounting ledger will use controlled double-entry journal records.',
     'Financial Reports':'Financial reports will use verified posted accounting entries.'
   };
 
@@ -743,6 +858,7 @@ async function financePage(page,c){
     <div class="page-heading"><div><h2>${page}</h2><div class="sub">${descriptions[page]||'Finance workspace'}</div></div></div>
     <div class="notice">This section is being prepared. No figures will be invented or treated as official profit before the required accounting records and controls are available.</div>
   `;
+
 }
 async function chamaPage(c){
   const [groups,members]=await Promise.all([
