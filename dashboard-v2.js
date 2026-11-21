@@ -409,9 +409,9 @@ const applicantName=x=>x.member_id?memberName(x.member_id):x.individual_borrower
         </div>
         <div class="grid-two">
           ${panel('Recent savings transactions',table(['Type','Amount','Method','Date'],recentSavings.map(x=>`<tr><td>${esc(x.transaction_type)}</td><td>${money(x.amount)}</td><td>${esc(x.payment_method||'—')}</td><td>${esc(dateLabel(x.transaction_date))}</td></tr>`)))}
-          ${panel('Recent loan applications',table(['Member','Requested','Status','Applied'],recentApps.map(x=>`<tr><td>${esc(memberName(x.member_id))}</td><td>${money(x.requested_amount)}</td><td>${esc(x.status||'—')}</td><td>${esc(dateLabel(x.applied_at||x.created_at))}</td></tr>`)))}
+          ${panel('Recent loan applications',table(['Member','Requested','Status','Applied'],recentApps.map(x=>`<tr><td>${esc(applicantName(x))}</td><td>${money(x.requested_amount)}</td><td>${esc(x.status||'—')}</td><td>${esc(dateLabel(x.applied_at||x.created_at))}</td></tr>`)))}
         </div>
-        ${panel('Recent loan repayments',table(['Member','Amount','Payment method','Receipt','Date'],recentRepayments.map(x=>{const loan=loans.find(l=>l.id===x.loan_account_id); return `<tr><td>${esc(applicantloan(x))}</td><td>${money(x.amount)}</td><td>${esc(x.payment_method||'—')}</td><td>${esc(x.reference_number||'—')}</td><td>${esc(dateLabel(x.payment_date))}</td></tr>`;})))}
+        ${panel('Recent loan repayments',table(['Member','Amount','Payment method','Receipt','Date'],recentRepayments.map(x=>{const loan=loans.find(l=>l.id===x.loan_account_id); return `<tr><td>${esc(applicantName(loan))}</td><td>${money(x.amount)}</td><td>${esc(x.payment_method||'—')}</td><td>${esc(x.reference_number||'—')}</td><td>${esc(dateLabel(x.payment_date))}</td></tr>`;})))}
 
         ${errors.length ? `<div class="notice gora-data-note"><strong>Some optional data sources could not be read.</strong><br>${errors.map(esc).join('<br>')}<br>Other sections are still displayed using the data that was available.</div>` : ''}
         <div class="notice">Financial safeguards: member savings are liabilities, not GORA lending capital. Outstanding loans are not cash. Figures labelled “not verified” are intentionally withheld until the relevant ledger or reconciliation workflow exists. This Dashboard is read-only.</div>
