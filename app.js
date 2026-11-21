@@ -925,6 +925,225 @@ c.querySelector('[data-open-general-ledger]').addEventListener('click', showGene
       }
     };
 
+    const showGeneralLedger = async () => {
+      c.innerHTML = `
+        <div class="page-heading">
+          <div>
+            <h2>General Ledger</h2>
+            <div class="sub">
+              View posted journal activity and account balances.
+            </div>
+          </div>
+        </div>
+
+        <button type="button" data-back-accounting>
+          ← Back to Accounting
+        </button>
+
+        <div class="panel">
+          <label>
+            Select account
+            <select data-ledger-account>
+              <option value="">Loading accounts…</option>
+            </select>
+          </label>
+        </div>
+
+        <div data-ledger-results class="panel">
+          Choose an account to view its ledger.
+        </div>
+      `;
+
+      c.querySelector('[data-back-accounting]')
+        .addEventListener('click', showMenu);
+
+      const accountSelect =
+        c.querySelector('[data-ledger-account]');
+
+      const results =
+        c.querySelector('[data-ledger-results]');
+
+      try {
+        const { data: accounts, error: accountsError } =
+          await db
+            .from('gora_chart_of_accounts')
+            .select('id,account_code,account_name')
+            .eq('is_active', true)
+            .order('account_code');
+
+        if (accountsError) throw accountsError;
+
+        accountSelect.innerHTML = `
+          <option value="">Choose account</option>
+          ${(accounts || []).map(a => `
+            <option value="${esc(a.id)}">
+              ${esc(a.account_code)} - ${esc(a.account_name)}
+            </option>
+          `).join('')}
+        `;
+
+        accountSelect.addEventListener('change', async () => {
+          const accountId = accountSelect.value;
+
+          if (!accountId) {
+            results.textContent =
+              'Choose an account to view its ledger.';
+            return;
+          }
+
+          results.textContent = 'Loading ledger…';
+
+          try {
+            const { data: lines, error: linesError } =
+              await db
+                .from('gora_journal_entry_lines')
+                .select(`
+                  debit,
+                  credit,
+                  account:gora_chart_of_accounts(
+                    account_code,
+                    account_name
+                  ),
+                  journal:gora_journal_entries!inner(
+                    journal_number,
+                    entry_date,
+                    description,
+                    status
+                  )
+                `)
+                .eq('account_id', accountId)
+                .eq('journal.status', 'posted');
+
+            if (linesError) throw linesError;
+
+            const rows = (lines || []).sort((a, b) => {
+              const dateCompare = String(
+                a.journal.entry_date
+              ).localeCompare(String(b.journal.entry_date));
+
+              if (dateCompare !== 0) return dateCompare;
+
+              return Number(a.journal.journal_number) -
+                Number(b.journal.journal_number);
+            });
+
+            let runningBalance = 0;
+            let totalDebit = 0;
+            let totalCredit = 0;
+
+            const ledgerRows = rows.map(line => {
+              const debit = Number(line.debit || 0);
+              const credit = Number(line.credit || 0);
+
+              totalDebit += debit;
+              totalCredit += credit;
+              runningBalance += debit - credit;
+
+              const balanceSide =
+                runningBalance > 0 ? 'Dr' :
+                runningBalance < 0 ? 'Cr' : '—';
+
+              return `
+                <tr>
+                  <td>${esc(line.journal.entry_date || '')}</td>
+                  <td>${esc(line.journal.journal_number || '')}</td>
+                  <td>${esc(line.journal.description || '')}</td>
+                  <td style="text-align:right">
+                    ${debit.toLocaleString('en-KE',{
+                      minimumFractionDigits:2,
+                      maximumFractionDigits:2
+                    })}
+                  </td>
+                  <td style="text-align:right">
+                    ${credit.toLocaleString('en-KE',{
+                      minimumFractionDigits:2,
+                      maximumFractionDigits:2
+                    })}
+                  </td>
+                  <td style="text-align:right">
+                    ${Math.abs(runningBalance).toLocaleString('en-KE',{
+                      minimumFractionDigits:2,
+                      maximumFractionDigits:2
+                    })} ${balanceSide}
+                  </td>
+                </tr>
+              `;
+            }).join('');
+
+            results.innerHTML = `
+              <h3>
+                ${esc(rows[0]?.account?.account_code || '')}
+                ${esc(rows[0]?.account?.account_name || '')}
+              </h3>
+
+              <p>
+                Posted transactions: ${rows.length}
+              </p>
+
+              <div style="overflow-x:auto">
+                <table style="min-width:750px;width:100%">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Journal No.</th>
+                      <th>Description</th>
+                      <th style="text-align:right">Debit (KSh)</th>
+                      <th style="text-align:right">Credit (KSh)</th>
+                      <th style="text-align:right">Running balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${ledgerRows || `
+                      <tr>
+                        <td colspan="6">
+                          No posted transactions for this account.
+                        </td>
+                      </tr>
+                    `}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th colspan="3">Total</th>
+                      <th style="text-align:right">
+                        ${totalDebit.toLocaleString('en-KE',{
+                          minimumFractionDigits:2,
+                          maximumFractionDigits:2
+                        })}
+                      </th>
+                      <th style="text-align:right">
+                        ${totalCredit.toLocaleString('en-KE',{
+                          minimumFractionDigits:2,
+                          maximumFractionDigits:2
+                        })}
+                      </th>
+                      <th style="text-align:right">
+                        ${Math.abs(runningBalance).toLocaleString('en-KE',{
+                          minimumFractionDigits:2,
+                          maximumFractionDigits:2
+                        })} ${runningBalance > 0 ? 'Dr' :
+                             runningBalance < 0 ? 'Cr' : '—'}
+                      </th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            `;
+          } catch (err) {
+            results.innerHTML = `
+              <h3>Could not load ledger</h3>
+              <p>${esc(err.message || err)}</p>
+            `;
+          }
+        });
+
+      } catch (err) {
+        results.innerHTML = `
+          <h3>Could not load accounts</h3>
+          <p>${esc(err.message || err)}</p>
+        `;
+      }
+    };
+      
     const showJournalEntries = async () => {
       c.innerHTML = `
         <div class="page-heading">
