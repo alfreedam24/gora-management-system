@@ -55,21 +55,25 @@
 
       // Existing GORA tables and their verified columns. Each read fails independently
       // so an unfinished optional module cannot hide the rest of the dashboard.
-      const specs = [
-        ['members','id,member_number,full_name,phone,status,date_joined,created_at,membership_fee_due,membership_fee_status','created_at',3000],
-        ['chamas','id,name,location,meeting_day,status,created_at,meeting_frequency,weekly_savings_target','created_at',1000],
-        ['loans','id,member_id,principal,interest_amount,application_fee,total_payable,disbursement_date,first_due_date,status,created_at,closed_at','created_at',3000],
-        ['repayments','id,loan_id,installment_id,amount,payment_date,payment_method,receipt_number,notes','payment_date',5000],
-        ['loan_applications','id,member_id,requested_amount,approved_amount,status,applied_at,requested_at,recommendation_status,signing_status','applied_at',2000],
-        ['installment_balances','installment_id,loan_id,installment_number,due_date,amount_due,amount_paid,balance,payment_status','due_date',10000],
-        ['savings_transactions','id,member_id,chama_id,transaction_type,amount,transaction_date,reference,notes,payment_method,receipt_number','transaction_date',10000],
-        ['cashbook','id,transaction_date,entry_type,amount,description,reference','transaction_date',5000],
-        ['petty_cash_transactions','id,transaction_date,transaction_type,category,amount,description,voucher_number,payment_method,status','transaction_date',5000],
-        ['membership_payments','id,member_id,amount,payment_date,payment_method,receipt_number,reference,notes,created_at','payment_date',3000],
-        ['member_fines','id,member_id,chama_id,amount,reason,due_date,status,imposed_at,created_at','created_at',5000],
-        ['fine_payments','id,fine_id,amount,payment_date,payment_method,receipt_number,reference,created_at','payment_date',5000]
-      ];
-      const loaded=await Promise.all(specs.map(s=>optionalRead(...s)));
+      
+const specs = [
+  ['members','members','id,organization_id,chama_group_id,member_number,full_name,phone,registration_date,status,created_at,registration_fee_amount,registration_fee_status,branch_id','created_at',3000],
+  ['chamas','chama_groups','id,organization_id,group_code,group_name,status,created_at,meeting_frequency,meeting_day,target_weekly_savings,location,meeting_time,meeting_venue','created_at',1000],
+  ['loans','loan_accounts','id,organization_id,borrower_type,member_id,individual_borrower_id,group_id,principal_amount,total_interest,total_repayment,disbursed_on,first_due_date,status,loan_account_number','created_at',3000],
+  ['repayments','loan_repayments','id,organization_id,loan_account_id,payment_date,amount,payment_method,reference_number,status,reversed_at','payment_date',5000],
+  ['loan_applications','loan_applications','id,organization_id,member_id,individual_borrower_id,requested_amount,approved_amount,status,applied_at,requested_at,created_at','created_at',2000],
+  ['installments','loan_repayment_schedules','id,organization_id,loan_account_id,installment_number,due_date,principal_due,interest_due,total_due,status','due_date',10000],
+  ['allocations','loan_repayment_allocations','id,organization_id,repayment_id,schedule_id,amount,created_at','created_at',10000],
+  ['savings_accounts','savings_accounts','id,organization_id,member_id,account_number,status','created_at',5000],
+  ['savings_transactions','savings_transactions','id,organization_id,savings_account_id,transaction_number,transaction_type,amount,payment_method,reference_number,status,reversed_transaction_id,transaction_date,posted_at','transaction_date',10000],
+  ['reconciliations','daily_reconciliations','id,organization_id,reconciliation_date,opening_cash,opening_mpesa,opening_bank,expected_closing_cash,expected_closing_mpesa,expected_closing_bank,actual_closing_cash,actual_closing_mpesa,actual_closing_bank,cash_variance,mpesa_variance,bank_variance,status,notes,recorded_by','reconciliation_date',1000],
+  ['capital','capital_transactions','id,organization_id,transaction_type,amount,transaction_date,payment_method,reference,description,status,reversed_by,reversed_at','transaction_date',3000],
+  ['petty_cash','petty_cash_transactions','id,organization_id,transaction_date,transaction_type,category,amount,description,reference,payment_method,status','transaction_date',5000]
+];
+
+      const loaded = await Promise.all(
+  specs.map(s => optionalRead(s[1], s[2], s[3], s[4]))
+);
       const data={}; const errors=[];
       specs.forEach((s,i)=>{data[s[0]]=loaded[i].data; if(loaded[i].error) errors.push(`${s[0]}: ${loaded[i].error}`);});
 
