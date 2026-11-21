@@ -62,6 +62,7 @@ const specs = [
   ['loans','loan_accounts','id,organization_id,borrower_type,member_id,individual_borrower_id,group_id,principal_amount,total_interest,total_repayment,disbursed_on,first_due_date,status,loan_account_number','created_at',3000],
   ['repayments','loan_repayments','id,organization_id,loan_account_id,payment_date,amount,payment_method,reference_number,status,reversed_at','payment_date',5000],
 ['loan_applications','loan_applications','id,organization_id,member_id,individual_borrower_id,requested_amount,approved_amount,status,applied_at,created_at','created_at',2000],
+     ['individual_borrowers','individual_borrowers','id,full_name,borrower_number','created_at',2000],
   ['installments','loan_repayment_schedules','id,organization_id,loan_account_id,installment_number,due_date,principal_due,interest_due,total_due,status','due_date',10000],
   ['allocations','loan_repayment_allocations','id,organization_id,repayment_id,schedule_id,amount,created_at','created_at',10000],
   ['savings_accounts','savings_accounts','id,organization_id,member_id,account_number,status','created_at',5000],
@@ -328,9 +329,9 @@ const activeLoans = disbursedLoans.filter(
         const rows=savings.filter(x=>String(x.transaction_date||'').slice(0,7)===k);
         return {month:monthLabel(k), deposits:sum(rows.filter(x=>['deposit','contribution','savings_deposit'].includes(low(x.transaction_type)))), withdrawals:sum(rows.filter(x=>['withdrawal','savings_withdrawal'].includes(low(x.transaction_type))))};
       });
-      const memberTrend=monthKeys.map(k=>({month:monthLabel(k),count:members.filter(x=>String(x.date_joined||x.created_at||'').slice(0,7)===k).length}));
+      const memberTrend=monthKeys.map(k=>({month:monthLabel(k),count:members.filter(x=>String(x.registration_date||x.created_at||'').slice(0,7)===k).length}));
       const chamaTrend=monthKeys.map(k=>({month:monthLabel(k),count:chamas.filter(x=>String(x.created_at||'').slice(0,7)===k).length}));
-      const applicationTrend=monthKeys.map(k=>({month:monthLabel(k),count:apps.filter(x=>String(x.applied_at||x.requested_at||'').slice(0,7)===k).length}));
+      const applicationTrend=monthKeys.map(k=>({month:monthLabel(k),count:apps.filter(x=>String(x.applied_at||x.created_at||'').slice(0,7)===k).length}));
       const maxSavings=Math.max(1,...savingsTrend.flatMap(x=>[x.deposits,x.withdrawals]));
       const savingsBars=savingsTrend.map(x=>`<div class="gora-chart-row"><span>${esc(x.month)}</span><div class="gora-bars ${x.deposits===0&&x.withdrawals===0?'is-zero':''}"><i style="width:${x.deposits===0?0:Math.max(4,x.deposits/maxSavings*100)}%" title="Deposits ${money(x.deposits)}"></i><b style="width:${x.withdrawals===0?0:Math.max(4,x.withdrawals/maxSavings*100)}%" title="Withdrawals ${money(x.withdrawals)}"></b></div><small>${money(x.deposits)}</small></div>`).join('');
 
@@ -401,14 +402,14 @@ const activeLoans = disbursedLoans.filter(
 
         <div class="gora-section-heading"><h3>Existing dashboard records</h3><span>Recent activity retained</span></div>
         <div class="grid-two">
-          ${panel('Recently registered members',table(['Member','Member number','Status','Joined'],recentMembers.map(x=>`<tr><td>${esc(x.full_name)}</td><td>${esc(x.member_number||'—')}</td><td>${esc(x.status||'—')}</td><td>${esc(x.date_joined||'—')}</td></tr>`)))}
-          ${panel('Recently opened chama groups',table(['Group','Location','Meeting day','Status'],recentChamas.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.location||'—')}</td><td>${esc(x.meeting_day||'—')}</td><td>${esc(x.status||'—')}</td></tr>`)))}
+          ${panel('Recently registered members',table(['Member','Member number','Status','Joined'],recentMembers.map(x=>`<tr><td>${esc(x.full_name)}</td><td>${esc(x.member_number||'—')}</td><td>${esc(x.status||'—')}</td><td>${esc(x.registration_date||'—')}</td></tr>`)))}
+          ${panel('Recently opened chama groups',table(['Group','Location','Meeting day','Status'],recentChamas.map(x=>`<tr><td>${esc(x.group_name)}</td><td>${esc(x.location||'—')}</td><td>${esc(x.meeting_day||'—')}</td><td>${esc(x.status||'—')}</td></tr>`)))}
         </div>
         <div class="grid-two">
           ${panel('Recent savings transactions',table(['Type','Amount','Method','Date'],recentSavings.map(x=>`<tr><td>${esc(x.transaction_type)}</td><td>${money(x.amount)}</td><td>${esc(x.payment_method||'—')}</td><td>${esc(dateLabel(x.transaction_date))}</td></tr>`)))}
-          ${panel('Recent loan applications',table(['Member','Requested','Status','Applied'],recentApps.map(x=>`<tr><td>${esc(memberName(x.member_id))}</td><td>${money(x.requested_amount)}</td><td>${esc(x.status||'—')}</td><td>${esc(dateLabel(x.applied_at||x.requested_at))}</td></tr>`)))}
+          ${panel('Recent loan applications',table(['Member','Requested','Status','Applied'],recentApps.map(x=>`<tr><td>${esc(memberName(x.member_id))}</td><td>${money(x.requested_amount)}</td><td>${esc(x.status||'—')}</td><td>${esc(dateLabel(x.applied_at||x.created_at))}</td></tr>`)))}
         </div>
-        ${panel('Recent loan repayments',table(['Member','Amount','Payment method','Receipt','Date'],recentRepayments.map(x=>{const loan=loans.find(l=>l.id===x.loan_id); return `<tr><td>${esc(memberName(loan?.member_id))}</td><td>${money(x.amount)}</td><td>${esc(x.payment_method||'—')}</td><td>${esc(x.receipt_number||'—')}</td><td>${esc(dateLabel(x.payment_date))}</td></tr>`;})))}
+        ${panel('Recent loan repayments',table(['Member','Amount','Payment method','Receipt','Date'],recentRepayments.map(x=>{const loan=loans.find(l=>l.id===x.loan_account_id); return `<tr><td>${esc(memberName(loan?.member_id))}</td><td>${money(x.amount)}</td><td>${esc(x.payment_method||'—')}</td><td>${esc(x.reference_number||'—')}</td><td>${esc(dateLabel(x.payment_date))}</td></tr>`;})))}
 
         ${errors.length ? `<div class="notice gora-data-note"><strong>Some optional data sources could not be read.</strong><br>${errors.map(esc).join('<br>')}<br>Other sections are still displayed using the data that was available.</div>` : ''}
         <div class="notice">Financial safeguards: member savings are liabilities, not GORA lending capital. Outstanding loans are not cash. Figures labelled “not verified” are intentionally withheld until the relevant ledger or reconciliation workflow exists. This Dashboard is read-only.</div>
