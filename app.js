@@ -920,7 +920,7 @@ async function loanAccountsPage(c) {
     const [loansResult, membersResult, individualsResult,
       productsResult, repaymentsResult, schedulesResult] = await Promise.all([
       safe(db.from('loan_accounts')
-        .select('id,application_id,borrower_type,member_id,individual_borrower_id,loan_product_id,principal_amount,total_interest,total_repayment,repayment_frequency,duration_count,duration_unit,disbursed_on,first_due_date,status')
+        .select('id,loan_account_number,application_id,borrower_type,member_id,individual_borrower_id,loan_product_id,principal_amount,total_interest,total_repayment,repayment_frequency,duration_count,duration_unit,disbursed_on,first_due_date,status')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
         .limit(200)),
@@ -1035,7 +1035,7 @@ async function loanAccountsPage(c) {
       <div class="notice">
         A member can have multiple loan accounts. Payments and balances are
         calculated separately for each account. Account references below are
-        shortened record IDs, not official account numbers.
+        Each loan has its own unique official account number.
       </div>
 
       <div class="tablebox" style="overflow-x:auto; width:100%; display:block;">
@@ -1059,7 +1059,7 @@ async function loanAccountsPage(c) {
           <tbody>
             ${rows.length ? rows.map(x => `
               <tr>
-                <td>${esc(x.loan.id.slice(0, 8).toUpperCase())}</td>
+                <td>${esc(x.loan.loan_account_number)}</td>
                 <td>
                   ${esc(x.borrower)}
                   <div class="sub">${esc(x.borrowerNumber)}</div>
