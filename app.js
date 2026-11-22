@@ -2170,20 +2170,39 @@ async function performancePage(c){
     const productMap = Object.fromEntries(products.map(x => [x.id, x.product_name]));
     const money = n => cash(Number(n || 0));
     const paidFor = loanId => repayments.filter(r => r.loan_account_id === loanId && String(r.status || '').toUpperCase() === 'POSTED').reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    
     const rows = loans.map(loan => {
       const borrower = String(loan.borrower_type || '').toUpperCase() === 'MEMBER'
         ? memberMap[loan.member_id] : individualMap[loan.individual_borrower_id];
       const paid = paidFor(loan.id);
+
+      let maturityDate = '—';
+      if (loan.disbursed_on) {
+        const maturity = new Date(`${loan.disbursed_on}T00:00:00`);
+        const duration = Number(loan.duration_count || 1);
+        const unit = String(loan.duration_unit || 'months').toLowerCase();
+
+        if (unit.startsWith('day')) maturity.setDate(maturity.getDate() + duration);
+        else if (unit.startsWith('week')) maturity.setDate(maturity.getDate() + duration * 7);
+        else if (unit.startsWith('year')) maturity.setFullYear(maturity.getFullYear() + duration);
+        else maturity.setMonth(maturity.getMonth() + duration);
+
+        maturityDate = maturity.toISOString().slice(0, 10);
+      }
+
       return {
         loan,
         borrower: borrower?.full_name || 'Borrower not found',
         borrowerNo: borrower?.member_number || borrower?.borrower_number || '—',
+        borrowerCategory: loan.borrower_type || '—',
         phone: borrower?.phone || '',
         product: productMap[loan.loan_product_id] || '—',
+        maturityDate,
         paid,
         outstanding: Math.max(0, Number(loan.total_repayment || 0) - paid)
       };
     });
+
 
     const availableApps = approvedApplications.filter(a => !loans.some(l => l.application_id === a.id));
     const borrowerFor = app => String(app.borrower_type || '').toUpperCase() === 'MEMBER'
