@@ -2295,19 +2295,33 @@ async function performancePage(c){
       });
     }
 
+    
     function renderRows(list) {
       const tbody = c.querySelector('#gora-loan-account-rows');
       if (!tbody) return;
+
       tbody.innerHTML = list.length ? list.map(x => `<tr>
         <td>${esc(x.loan.loan_account_number || '—')}</td>
-        <td>${esc(x.borrower)}<div class="sub">${esc(x.borrowerNo)}</div></td>
-        <td>${esc(x.product)}</td><td>${money(x.loan.principal_amount)}</td>
-        <td>${money(x.loan.total_repayment)}</td><td>${money(x.paid)}</td>
-        <td>${money(x.outstanding)}</td><td>${esc(x.loan.disbursed_on || '—')}</td>
+        <td>${esc(x.borrower)}
+          <div class="sub">${esc(x.borrowerNo)}</div>
+          <div class="sub">${esc(x.borrowerCategory)}</div>
+        </td>
+        <td>${esc(x.product)}</td>
+        <td>${money(x.loan.principal_amount)}</td>
+        <td>${money(x.loan.total_interest)}</td>
+        <td>${money(x.loan.total_repayment)}</td>
+        <td>${money(x.paid)}</td>
+        <td>${money(x.outstanding)}</td>
+        <td>${esc(x.loan.disbursed_on || '—')}</td>
+        <td>${esc(x.loan.first_due_date || '—')}</td>
+        <td>${esc(x.maturityDate || '—')}</td>
         <td>${esc(x.loan.status || '—')}</td>
-        <td><button class="secondary" data-loan-account-detail="${esc(x.loan.id)}">View</button></td>
-      </tr>`).join('') : '<tr><td colspan="10" class="empty">No loan accounts found.</td></tr>';
+        <td>
+          <button class="secondary" data-loan-account-detail="${esc(x.loan.id)}">View</button>
+        </td>
+      </tr>`).join('') : '<tr><td colspan="13" class="empty">No loan accounts found.</td></tr>';
     }
+
 
     c.innerHTML = `<div class="page-heading"><div><h2>Loan Accounts</h2><div class="sub">Disbursed loan accounts and balances. Accounts are created only from approved applications.</div></div></div>
       <div class="stats">${stat('Loan accounts', loans.length, 'All recorded accounts', 'blue')}${stat('Principal disbursed', money(loans.reduce((s,l)=>s+Number(l.principal_amount||0),0)), 'Recorded principal', 'blue')}${stat('Posted repayments', money(repayments.filter(r=>String(r.status||'').toUpperCase()==='POSTED').reduce((s,r)=>s+Number(r.amount||0),0)), 'Payments posted', 'good')}${stat('Outstanding', money(rows.reduce((s,x)=>s+x.outstanding,0)), 'Total repayment less posted payments', 'warn')}</div>
