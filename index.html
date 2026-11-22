@@ -30,8 +30,33 @@
   <button class="nav-item" type="button" onclick="location.href='borrowers-v2.html'"><span>♙</span>Borrowers</button>
 <button class="nav-item" data-page="Approvals"><span>✓</span>Member approvals</button><button class="nav-item" data-page="Chamas"><span>♧</span>Chama management</button>
 <div class="nav-label">CREDIT</div>
-<button class="nav-item" data-page="Applications"><span>▤</span>Loan applications</button>
-<button class="nav-item" data-page="Loans"><span>▣</span>Active loans</button>
+<div class="nav-label">CREDIT</div>
+
+<button class="nav-item" type="button"
+  id="loansToggle"
+  aria-expanded="false"
+  onclick="
+    const menu=document.getElementById('loansSubmenu');
+    menu.hidden=!menu.hidden;
+    this.setAttribute('aria-expanded',String(!menu.hidden));
+  ">
+  <span>▣</span>
+  Loans
+  <span style="margin-left:auto">⌄</span>
+</button>
+
+<div id="loansSubmenu" hidden style="padding-left:14px">
+  <button class="nav-item" data-page="Loans" data-loan-view="accounts">Loan Accounts</button>
+  <button class="nav-item" data-page="Loans" data-loan-view="mtd">Collection MTD</button>
+  <button class="nav-item" data-page="Loans" data-loan-view="disbursements">Progressive Disbursements</button>
+  <button class="nav-item" data-page="Loans" data-loan-view="rates">Collection Rates</button>
+  <button class="nav-item" data-page="Loans" data-loan-view="arrears">Arrears</button>
+  <button class="nav-item" data-page="Applications">Applications</button>
+  <button class="nav-item" data-page="Loans" data-loan-view="collection-sheet">Collection Sheet</button>
+  <button class="nav-item" data-page="Loans" data-loan-view="bulk-repayment">Bulk Repayments</button>
+  <button class="nav-item" data-page="Loans" data-loan-view="loan-products">Loan Products</button>
+  <button class="nav-item" data-page="Loans" data-loan-view="reports">Reports &amp; Export</button>
+</div>
 <div class="nav-label">FINANCE</div>
 
 <button class="nav-item" type="button"
