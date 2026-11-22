@@ -2327,7 +2327,7 @@ async function performancePage(c){
       <div class="stats">${stat('Loan accounts', loans.length, 'All recorded accounts', 'blue')}${stat('Principal disbursed', money(loans.reduce((s,l)=>s+Number(l.principal_amount||0),0)), 'Recorded principal', 'blue')}${stat('Posted repayments', money(repayments.filter(r=>String(r.status||'').toUpperCase()==='POSTED').reduce((s,r)=>s+Number(r.amount||0),0)), 'Payments posted', 'good')}${stat('Outstanding', money(rows.reduce((s,x)=>s+x.outstanding,0)), 'Total repayment less posted payments', 'warn')}</div>
       <div class="panel"><div class="table-head"><h3>Loan account register</h3><button id="gora-create-loan-account">Create loan account</button></div>
       <label for="gora-loan-account-search">Search accounts</label><input id="gora-loan-account-search" type="search" placeholder="Borrower, account number, product or status" style="width:100%;max-width:480px;margin:6px 0 14px;padding:10px;border:1px solid var(--border,#ddd);border-radius:8px">
-      <div class="tablebox" style="overflow-x:auto"><table style="min-width:1100px;width:100%">
+      <div class="tablebox" style="overflow-x:auto"><table style="min-width:1500px;width:100%">
 <thead>
   <tr>
     <th>Account number</th>
