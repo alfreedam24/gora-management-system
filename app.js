@@ -93,6 +93,9 @@ $('nav').addEventListener('click',e=>{
   if(!b)return;
 
   const page=b.dataset.page;
+  if(page==='Loans'){
+  window.__goraRequestedLoanView=b.dataset.loanView||'accounts';
+  }
 if(page==='Member Profiles'){location.href='member-profiles.html';return}
   if(page==='Members'){location.href='members-v2.html';return}
   if(page==='Approvals'){location.href='member-approvals-v2.html';return}
@@ -2230,10 +2233,23 @@ async function performancePage(c){
     c.innerHTML = `<div class="page-heading"><div><h2>Loans &amp; Collections</h2><div class="sub">Loan accounts, month-to-date collections, progressive disbursements and collection performance.</div></div></div>
       <div class="stats">${stat('Loan accounts',loans.length,'All recorded accounts','blue')}${stat('Principal disbursed',money(totalPrincipal),'Original principal','blue')}${stat('Posted repayments',money(totalPaid),'All posted repayments','good')}${stat('Outstanding',money(totalOutstanding),'Total repayment less posted payments','warn')}</div>
       <div class="stats">${stat('Collections MTD',money(mtdCollected),'Posted repayments this month','good')}${stat('Disbursements MTD',money(mtdDisbursed),'Principal disbursed this month','blue')}${stat('Arrears accounts',arrearsRows.length,'Past-due schedule entries detected','warn')}</div>
-      <div class="panel"><div class="table-head"><h3>Loans operations</h3></div><div class="loan-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button class="secondary active" data-loan-view="accounts">Loan Accounts</button><button class="secondary" data-loan-view="mtd">Collection MTD</button><button class="secondary" data-loan-view="disbursements">Progressive Disbursements</button><button class="secondary" data-loan-view="rates">Collection Rates</button><button class="secondary" data-loan-view="arrears">Arrears</button><button class="secondary" data-loan-view="applications">Applications</button><button class="secondary" data-loan-view="collection-sheet">Collection Sheet</button><button class="secondary" data-loan-view="bulk-repayment">Bulk Repayments</button><button class="secondary" data-loan-view="loan-products">Loan Products</button><button class="secondary" data-loan-view="reports">Reports &amp; Export</button></div>
+      <div class="panel"><div class="table-head"><h3>Loans operations</h3></div><div style="display:none" aria-hidden="true">
+  <button data-loan-view="accounts"></button>
+  <button data-loan-view="mtd"></button>
+  <button data-loan-view="disbursements"></button>
+  <button data-loan-view="rates"></button>
+  <button data-loan-view="arrears"></button>
+  <button data-loan-view="collection-sheet"></button>
+  <button data-loan-view="bulk-repayment"></button>
+  <button data-loan-view="loan-products"></button>
+  <button data-loan-view="reports"></button>
+</div>style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button class="secondary active" data-loan-view="accounts">Loan Accounts</button><button class="secondary" data-loan-view="mtd">Collection MTD</button><button class="secondary" data-loan-view="disbursements">Progressive Disbursements</button><button class="secondary" data-loan-view="rates">Collection Rates</button><button class="secondary" data-loan-view="arrears">Arrears</button><button class="secondary" data-loan-view="applications">Applications</button><button class="secondary" data-loan-view="collection-sheet">Collection Sheet</button><button class="secondary" data-loan-view="bulk-repayment">Bulk Repayments</button><button class="secondary" data-loan-view="loan-products">Loan Products</button><button class="secondary" data-loan-view="reports">Reports &amp; Export</button></div>
       <label for="gora-loan-search">Search loan accounts</label><input id="gora-loan-search" type="search" placeholder="Borrower, loan number, product or status" style="width:100%;max-width:480px;margin:6px 0 14px;padding:10px;border:1px solid var(--border,#ddd);border-radius:8px">
       <div id="gora-loan-report-content"><div class="tablebox" style="overflow-x:auto;width:100%;display:block"><table style="min-width:1000px;width:100%"><thead><tr><th>Loan reference</th><th>Borrower</th><th>Product</th><th>Principal</th><th>Loan + charges</th><th>Paid</th><th>Outstanding</th><th>Next due</th><th>Status</th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td>${esc(x.loan.loan_account_number||'—')}</td><td>${esc(x.borrower)}<div class="sub">${esc(x.borrowerNumber)}</div></td><td>${esc(x.product)}</td><td>${money(x.loan.principal_amount)}</td><td>${money(x.loan.total_repayment)}</td><td>${money(x.paid)}</td><td>${money(x.outstanding)}</td><td>${esc(x.nextDue)}</td><td>${esc(x.loan.status||'—')}</td></tr>`).join(''):`<tr><td colspan="9" class="empty">No loan accounts found.</td></tr>`}</tbody></table></div></div></div>
       <div class="notice">Reporting note: collection figures use repayments with status POSTED. Monthly collection rate currently uses an estimated opening OLB based on principal less prior posted repayments. This report is for monitoring; it does not alter or post any financial transaction.</div>`;
+    const initialView=window.__goraRequestedLoanView||'accounts';
+window.__goraRequestedLoanView='accounts';
+c.querySelector(`[data-loan-view="${initialView}"]`)?.click();
   } catch (e) {
     c.innerHTML = `<div class="panel"><h3>Could not load Loans &amp; Collections</h3><p>${esc(e.message || e)}</p><p>No loan data has been changed.</p></div>`;
   }
