@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GORA | Borrowers</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--navy:#153f70;--blue:#1769aa;--bg:#f1f5fa;--line:#dce5ed;--muted:#718096}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#243447;font:14px Arial,sans-serif}
+header{background:var(--navy);color:white;padding:17px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{margin:0;font-size:22px}header p{margin:5px 0 0;color:#c9d9e8;font-size:12px}header a{color:white;text-decoration:none}
+main{max-width:1200px;margin:22px auto;padding:0 14px}.card{background:white;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 3px 12px #102b4610}
+h2{margin:0 0 14px;color:var(--navy);font-size:19px}h3{margin:16px 0 8px;color:var(--navy);font-size:15px}
+button{border:0;border-radius:8px;padding:11px 14px;background:var(--blue);color:white;font-weight:700;cursor:pointer}button:disabled{opacity:.55}.secondary{background:#e8f1f8;color:#174c78}
+input,select,textarea{width:100%;padding:11px;border:1px solid #cbd5e0;border-radius:8px;background:white;font-size:14px}
+label{display:block;font-weight:600;font-size:12px;margin:10px 0 6px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.toolbar input{flex:1;min-width:210px}
+.menu-wrap{position:relative}.menu{position:absolute;right:0;top:42px;z-index:10;min-width:220px;background:white;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px #102b4620;padding:6px}.menu button{display:block;width:100%;text-align:left;background:white;color:#243447;margin:0;padding:10px}.menu button:hover{background:#edf5fb}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.stat{background:#f3f7fb;border-radius:10px;padding:13px}.stat span{font-size:11px;color:#667789}.stat strong{display:block;color:var(--navy);font-size:20px;margin-top:6px;overflow-wrap:anywhere}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:650px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);font-size:12px;vertical-align:top}th{background:#f3f7fa;color:#536779}
+.listrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:10px;margin:8px 0}.name{font-weight:bold;color:var(--navy)}.muted{font-size:12px;color:var(--muted);line-height:1.5}.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#edf2f7;font-size:10px;font-weight:bold}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.tabs button{background:#edf3f8;color:#33536c;font-size:12px}.tabs button.active{background:var(--navy);color:white}
+.message{display:none;padding:12px;border-radius:8px;margin:12px 0;white-space:pre-wrap}.success{display:block;background:#e4f7ed;color:#17633a}.error{display:block;background:#fde8e8;color:#9b2525}.notice{padding:12px;background:#fff5df;color:#78551b;border-radius:9px;margin:12px 0}.hidden{display:none!important}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}.span2{grid-column:1/-1}.profile-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+footer{text-align:center;color:#8999a8;font-size:11px;padding:20px}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){main{padding:0 9px}.card{padding:14px}.formgrid{grid-template-columns:1fr}.span2{grid-column:auto}.listrow{grid-template-columns:1fr}.listrow button{width:100%}header{padding:15px}}
+</style>
+</head>
+<body>
+<header>
+<div><h1>GORA · Borrowers</h1><p>Borrower directory and personal financial history</p></div>
+<div class="toolbar"><a href="index.html">← GORA workspace</a><div class="menu-wrap"><button id="menuBtn" class="secondary" type="button">Borrowers menu ▾</button><div id="menu" class="menu hidden">
+<button data-action="directory">Borrower directory</button><button data-action="openprofile">Open selected profile</button><button data-action="savings">Record savings</button><button data-action="repayment">Record loan repayment</button><button data-action="register">Register member</button><button data-action="refresh">Refresh data</button>
+</div></div></div>
+</header>
+<main>
+<div id="message" class="message"></div>
+<section id="loading" class="card"><h2>Connecting to GORA</h2><p class="muted">Checking staff session...</p></section>
+<section id="workspace" class="hidden">
+<div class="card"><div class="profile-head"><div><h2>Borrower directory</h2><p class="muted">Search members and individual borrowers. Open a profile for savings, chama and loan history.</p></div><button id="register">+ Register member</button></div>
+<div class="grid" id="stats"></div>
+<div class="toolbar" style="margin:14px 0"><input id="search" placeholder="Search name, phone, ID or borrower number"><select id="kindFilter" style="max-width:190px"><option value="ALL">All borrower types</option><option value="MEMBER">GORA members</option><option value="INDIVIDUAL">Individual borrowers</option></select><select id="statusFilter" style="max-width:160px"><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option><option value="BLOCKED">Blocked</option></select><button id="refresh" class="secondary">Refresh</button></div><div id="directory"></div></div>
+<section class="card hidden" id="profile"><div class="profile-head"><div><h2 id="pName">Borrower profile</h2><p class="muted" id="pMeta"></p></div><button class="secondary" id="closeProfile">Close</button></div><div class="grid" id="pStats"></div>
+<div class="tabs" id="tabs"><button data-tab="overview" class="active">Overview</button><button data-tab="loans">Loans</button><button data-tab="savings">Savings</button><button data-tab="repayments">Repayments</button><button data-tab="chama">Chama</button></div><div id="pContent"></div></section>
+<section class="card hidden" id="txCard"><div class="profile-head"><div><h2 id="txTitle">Record transaction</h2><p class="muted">GORA will calculate the updated totals from posted transactions.</p></div><button class="secondary" id="closeTx">Close</button></div>
+<form id="txForm"><div class="formgrid"><div class="span2"><label>Borrower</label><select id="txBorrower" required></select></div><div class="span2"><label>Account</label><select id="txAccount" required></select></div>
+<div id="savingsTypeWrap"><label>Savings transaction</label><select id="savingsType"><option value="DEPOSIT">Deposit</option><option value="WITHDRAWAL">Withdrawal</option></select></div>
+<div><label>Transaction date</label><input id="txDate" type="date" required></div><div><label>Amount (KSh)</label><input id="txAmount" type="number" min="0.01" step="0.01" required></div><div><label>Payment method</label><select id="txMethod"><option value="CASH">Cash</option><option value="MPESA">M-Pesa</option><option value="BANK">Bank</option></select></div><div><label>Reference number</label><input id="txRef" maxlength="100" placeholder="M-Pesa code / receipt"></div><div class="span2"><label>Notes</label><textarea id="txNotes" rows="2"></textarea></div></div><button id="txSave">Record transaction</button></form><div id="txMsg" class="message"></div><p class="notice">Savings transactions should remain pending until approved. Loan repayments are posted through the FIFO repayment function. Before live use, confirm that your Supabase tables, columns, role permissions and RPC parameter names match this module.</p></section>
+</section>
+</main><footer>GORA Savings &amp; Credit Group · Internal staff system</footer>
+<script>
