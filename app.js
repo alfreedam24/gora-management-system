@@ -2140,121 +2140,178 @@ async function performancePage(c){
     const { data: authData, error: authError } = await db.auth.getUser();
     if (authError || !authData?.user) throw new Error('Please sign in again.');
 
-    const assignments = await safe(db.from('user_roles').select('organization_id')
+    const assignmentResult = await safe(db.from('user_roles').select('organization_id')
       .eq('user_id', authData.user.id).eq('is_active', true));
-    const orgIds = [...new Set((assignments.data || []).map(x => x.organization_id).filter(Boolean))];
+    if (assignmentResult.error) throw assignmentResult.error;
+    const orgIds = [...new Set((assignmentResult.data || []).map(x => x.organization_id).filter(Boolean))];
     if (orgIds.length !== 1) throw new Error('Your staff account must have exactly one active organisation assignment.');
     const orgId = orgIds[0];
 
-    const [loansResult, membersResult, individualsResult, productsResult, repaymentsResult, schedulesResult] = await Promise.all([
+    const [loansResult, membersResult, individualsResult, productsResult, applicationsResult, repaymentsResult] = await Promise.all([
       safe(db.from('loan_accounts').select('id,loan_account_number,application_id,borrower_type,member_id,individual_borrower_id,loan_product_id,principal_amount,total_interest,total_repayment,repayment_frequency,duration_count,duration_unit,disbursed_on,first_due_date,status,created_at').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(1000)),
       safe(db.from('members').select('id,member_number,full_name,phone').eq('organization_id', orgId)),
       safe(db.from('individual_borrowers').select('id,borrower_number,full_name,phone').eq('organization_id', orgId)),
       safe(db.from('loan_products').select('id,product_name').eq('organization_id', orgId)),
-      safe(db.from('loan_repayments').select('loan_account_id,payment_date,amount,status,payment_method,reference_number').eq('organization_id', orgId).limit(5000)),
-      safe(db.from('loan_repayment_schedules').select('loan_account_id,due_date,total_due,status').eq('organization_id', orgId).order('due_date').limit(5000))
+      safe(db.from('loan_applications').select('id,application_number,borrower_type,member_id,individual_borrower_id,loan_product_id,approved_amount,approved_interest_rate,approved_interest_method,approved_duration,approved_duration_unit,approved_repayment_frequency,approved_total_interest,approved_total_repayment,status,approved_at').eq('organization_id', orgId).eq('status', 'approved').limit(1000)),
+      safe(db.from('loan_repayments').select('loan_account_id,amount,status').eq('organization_id', orgId).limit(5000))
     ]);
-    for (const result of [loansResult, membersResult, individualsResult, productsResult, repaymentsResult, schedulesResult]) {
+    for (const result of [loansResult, membersResult, individualsResult, productsResult, applicationsResult, repaymentsResult]) {
       if (result.error) throw result.error;
     }
 
-    const loans = loansResult.data || [], members = membersResult.data || [], individuals = individualsResult.data || [];
-    const products = productsResult.data || [], repayments = repaymentsResult.data || [], schedules = schedulesResult.data || [];
+    const loans = loansResult.data || [];
+    const members = membersResult.data || [];
+    const individuals = individualsResult.data || [];
+    const products = productsResult.data || [];
+    const approvedApplications = applicationsResult.data || [];
+    const repayments = repaymentsResult.data || [];
     const memberMap = Object.fromEntries(members.map(x => [x.id, x]));
     const individualMap = Object.fromEntries(individuals.map(x => [x.id, x]));
     const productMap = Object.fromEntries(products.map(x => [x.id, x.product_name]));
     const money = n => cash(Number(n || 0));
-    const today = new Date();
-    const isoToday = today.toISOString().slice(0, 10);
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    const posted = repayments.filter(r => String(r.status || '').toUpperCase() === 'POSTED');
-    const paidFor = loanId => posted.filter(r => r.loan_account_id === loanId).reduce((s, r) => s + Number(r.amount || 0), 0);
+    const paidFor = loanId => repayments.filter(r => r.loan_account_id === loanId && String(r.status || '').toUpperCase() === 'POSTED').reduce((sum, r) => sum + Number(r.amount || 0), 0);
     const rows = loans.map(loan => {
-      const borrower = String(loan.borrower_type || '').toUpperCase() === 'MEMBER' ? memberMap[loan.member_id] : individualMap[loan.individual_borrower_id];
+      const borrower = String(loan.borrower_type || '').toUpperCase() === 'MEMBER'
+        ? memberMap[loan.member_id] : individualMap[loan.individual_borrower_id];
       const paid = paidFor(loan.id);
-      const outstanding = Math.max(0, Number(loan.total_repayment || 0) - paid);
-      const nextDue = schedules.find(s => s.loan_account_id === loan.id && !['PAID', 'WAIVED'].includes(String(s.status || '').toUpperCase()) && Number(s.total_due || 0) > 0);
-      return { loan, borrower: borrower?.full_name || 'Borrower not found', borrowerNumber: borrower?.member_number || borrower?.borrower_number || '—', phone: borrower?.phone || '', product: productMap[loan.loan_product_id] || '—', paid, outstanding, nextDue: nextDue?.due_date || '—' };
+      return {
+        loan,
+        borrower: borrower?.full_name || 'Borrower not found',
+        borrowerNo: borrower?.member_number || borrower?.borrower_number || '—',
+        phone: borrower?.phone || '',
+        product: productMap[loan.loan_product_id] || '—',
+        paid,
+        outstanding: Math.max(0, Number(loan.total_repayment || 0) - paid)
+      };
     });
 
-    const monthKey = d => String(d || '').slice(0, 7);
-    const monthLabel = key => { const [y,m] = key.split('-').map(Number); return new Date(y, m-1, 1).toLocaleDateString('en-KE', {month:'short',year:'numeric'}); };
-    const monthly = {};
-    const allDates = [...loans.map(x => x.disbursed_on).filter(Boolean), ...posted.map(x => x.payment_date).filter(Boolean)].sort();
-    if (allDates.length) {
-      const first = new Date(allDates[0] + 'T00:00:00');
-      const start = new Date(first.getFullYear(), first.getMonth(), 1);
-      const end = new Date(today.getFullYear(), today.getMonth(), 1);
-      for (let d = new Date(start); d <= end; d.setMonth(d.getMonth()+1)) {
-        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-        const next = new Date(d.getFullYear(), d.getMonth()+1, 1).toISOString().slice(0,10);
-        const begin = d.toISOString().slice(0,10);
-        const disbursed = loans.filter(l => l.disbursed_on >= begin && l.disbursed_on < next).reduce((s,l)=>s+Number(l.principal_amount||0),0);
-        const disbursedCount = loans.filter(l => l.disbursed_on >= begin && l.disbursed_on < next).length;
-        const collected = posted.filter(r => r.payment_date >= begin && r.payment_date < next).reduce((s,r)=>s+Number(r.amount||0),0);
-        const openingPrincipal = loans.filter(l => l.disbursed_on && l.disbursed_on < begin).reduce((s,l)=>s+Number(l.principal_amount||0),0);
-        const paidBefore = posted.filter(r => r.payment_date && r.payment_date < begin).reduce((s,r)=>s+Number(r.amount||0),0);
-        const openingOlb = Math.max(0, openingPrincipal - paidBefore);
-        monthly[key] = {key, label:monthLabel(key), disbursed, disbursedCount, collected, openingOlb, rate:openingOlb ? collected/openingOlb*100 : null};
-      }
-    }
-    const monthRows = Object.values(monthly).reverse();
-    const mtdCollected = posted.filter(r => r.payment_date >= monthStart && r.payment_date <= isoToday).reduce((s,r)=>s+Number(r.amount||0),0);
-    const mtdDisbursed = loans.filter(l => l.disbursed_on >= monthStart && l.disbursed_on <= isoToday).reduce((s,l)=>s+Number(l.principal_amount||0),0);
-    const totalPrincipal = loans.reduce((s,l)=>s+Number(l.principal_amount||0),0);
-    const totalPaid = rows.reduce((s,x)=>s+x.paid,0);
-    const totalOutstanding = rows.reduce((s,x)=>s+x.outstanding,0);
-    const arrearsRows = rows.filter(x => schedules.some(s => s.loan_account_id===x.loan.id && s.due_date < isoToday && !['PAID','WAIVED'].includes(String(s.status||'').toUpperCase())));
+    const availableApps = approvedApplications.filter(a => !loans.some(l => l.application_id === a.id));
+    const borrowerFor = app => String(app.borrower_type || '').toUpperCase() === 'MEMBER'
+      ? memberMap[app.member_id] : individualMap[app.individual_borrower_id];
+    const accountNo = () => `GORA-LN-${Date.now().toString().slice(-8)}`;
 
-    window.__goraLoanReportData = {rows, monthRows, arrearsRows, money};
-    if (!c.dataset.loanModuleBound) {
-      c.dataset.loanModuleBound = '1';
-      c.addEventListener('click', ev => {
-        const btn = ev.target.closest('[data-loan-view]');
-        if (!btn) return;
-        const view = btn.getAttribute('data-loan-view');
-        const data = window.__goraLoanReportData;
-        const panel = c.querySelector('#gora-loan-report-content');
-        if (!panel || !data) return;
-        c.querySelectorAll('[data-loan-view]').forEach(b=>b.classList.toggle('active', b===btn));
-        const search = (c.querySelector('#gora-loan-search')?.value || '').toLowerCase().trim();
-        const filtered = data.rows.filter(x => `${x.loan.loan_account_number} ${x.borrower} ${x.borrowerNumber} ${x.product} ${x.loan.status}`.toLowerCase().includes(search));
-        const accountTable = (list) => `<div class="tablebox" style="overflow-x:auto;width:100%;display:block"><table style="min-width:1000px;width:100%"><thead><tr><th>Loan reference</th><th>Borrower</th><th>Product</th><th>Principal</th><th>Loan + charges</th><th>Paid</th><th>Outstanding</th><th>Next due</th><th>Status</th></tr></thead><tbody>${list.length?list.map(x=>`<tr><td>${esc(x.loan.loan_account_number||'—')}</td><td>${esc(x.borrower)}<div class="sub">${esc(x.borrowerNumber)}</div></td><td>${esc(x.product)}</td><td>${data.money(x.loan.principal_amount)}</td><td>${data.money(x.loan.total_repayment)}</td><td>${data.money(x.paid)}</td><td>${data.money(x.outstanding)}</td><td>${esc(x.nextDue)}</td><td>${esc(x.loan.status||'—')}</td></tr>`).join(''):`<tr><td colspan="9" class="empty">No loan accounts match.</td></tr>`}</tbody></table></div>`;
-        if (view === 'accounts') panel.innerHTML = accountTable(filtered);
-        else if (view === 'mtd') panel.innerHTML = `<div class="stats">${stat('Collected MTD',data.money(mtdCollected),'Posted repayments this month','good')}${stat('Disbursed MTD',data.money(mtdDisbursed),'Loans disbursed this month','blue')}${stat('Disbursement count',loans.filter(l=>l.disbursed_on>=monthStart&&l.disbursed_on<=isoToday).length,'This month','blue')}</div><h3>Month-to-date collections</h3><p>Collection totals include repayments marked POSTED from ${monthStart} through ${isoToday}.</p>`;
-        else if (view === 'disbursements') panel.innerHTML = `<div class="tablebox" style="overflow-x:auto"><table><thead><tr><th>Month</th><th>Loans</th><th>Disbursed</th><th>Collected</th><th>Opening OLB</th></tr></thead><tbody>${data.monthRows.map(m=>`<tr><td>${m.label}</td><td>${m.disbursedCount}</td><td>${data.money(m.disbursed)}</td><td>${data.money(m.collected)}</td><td>${data.money(m.openingOlb)}</td></tr>`).join('')||'<tr><td colspan="5">No dated loan activity yet.</td></tr>'}</tbody></table></div>`;
-        else if (view === 'rates') panel.innerHTML = `<div class="notice">Monthly collection rate is shown as amount collected during the month ÷ opening OLB for that month × 100. Opening OLB here is an estimate based on original principal less posted repayments before the month; it does not yet include interest, write-offs or restructuring.</div><div class="tablebox" style="overflow-x:auto"><table><thead><tr><th>Month</th><th>Opening OLB</th><th>Amount collected</th><th>Collection rate</th></tr></thead><tbody>${data.monthRows.map(m=>`<tr><td>${m.label}</td><td>${data.money(m.openingOlb)}</td><td>${data.money(m.collected)}</td><td>${m.rate===null?'—':m.rate.toFixed(1)+'%'}</td></tr>`).join('')||'<tr><td colspan="4">No dated loan activity yet.</td></tr>'}</tbody></table></div>`;
-        else if (view === 'arrears') panel.innerHTML = accountTable(data.arrearsRows.filter(x=>`${x.loan.loan_account_number} ${x.borrower} ${x.borrowerNumber}`.toLowerCase().includes(search)));
-        else panel.innerHTML = `<div class="notice"><b>${esc(view)}</b> is included in the Loans module plan. Its workflow will be connected in the next implementation stage after these reports are verified.</div>`;
+    if (!c.dataset.loanAccountsBound) {
+      c.dataset.loanAccountsBound = '1';
+      c.addEventListener('click', async ev => {
+        const createBtn = ev.target.closest('#gora-create-loan-account');
+        const cancelBtn = ev.target.closest('#gora-cancel-loan-account');
+        const submitBtn = ev.target.closest('#gora-save-loan-account');
+        const detailBtn = ev.target.closest('[data-loan-account-detail]');
+        if (cancelBtn) {
+          c.querySelector('#gora-loan-account-form-wrap')?.classList.add('hidden');
+          return;
+        }
+        if (createBtn) {
+          const wrap = c.querySelector('#gora-loan-account-form-wrap');
+          if (!wrap) return;
+          wrap.classList.remove('hidden');
+          wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        if (detailBtn) {
+          const id = detailBtn.getAttribute('data-loan-account-detail');
+          const item = rows.find(x => x.loan.id === id);
+          const detail = c.querySelector('#gora-loan-account-detail');
+          if (item && detail) {
+            detail.innerHTML = `<h3>Loan account details</h3><p><b>Account:</b> ${esc(item.loan.loan_account_number || '—')}</p><p><b>Borrower:</b> ${esc(item.borrower)} (${esc(item.borrowerNo)})</p><p><b>Product:</b> ${esc(item.product)}</p><p><b>Principal:</b> ${money(item.loan.principal_amount)}</p><p><b>Total repayment:</b> ${money(item.loan.total_repayment)}</p><p><b>Paid:</b> ${money(item.paid)}</p><p><b>Outstanding:</b> ${money(item.outstanding)}</p><p><b>Disbursed:</b> ${esc(item.loan.disbursed_on || '—')}</p><p><b>First due:</b> ${esc(item.loan.first_due_date || '—')}</p><p><b>Status:</b> ${esc(item.loan.status || '—')}</p>`;
+            detail.classList.remove('hidden');
+            detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          return;
+        }
+        if (!submitBtn) return;
+        const form = c.querySelector('#gora-loan-account-form');
+        const msg = c.querySelector('#gora-loan-account-message');
+        const applicationId = form?.elements.application_id.value;
+        const disbursedOn = form?.elements.disbursed_on.value;
+        const firstDueDate = form?.elements.first_due_date.value;
+        const amount = Number(form?.elements.disbursed_amount.value || 0);
+        const application = availableApps.find(a => a.id === applicationId);
+        if (!application) { msg.textContent = 'Select an approved application that has not already been disbursed.'; return; }
+        if (!disbursedOn || !firstDueDate || amount <= 0) { msg.textContent = 'Complete the required account and disbursement dates and amount.'; return; }
+        if (firstDueDate < disbursedOn) { msg.textContent = 'First repayment date cannot be before disbursement date.'; return; }
+        if (amount !== Number(application.approved_amount || 0)) { msg.textContent = 'Disbursed amount must match the approved amount. Amend the approval first if needed.'; return; }
+        if (loans.some(l => l.application_id === applicationId)) { msg.textContent = 'This application already has a loan account.'; return; }
+        submitBtn.disabled = true;
+        msg.textContent = 'Creating loan account…';
+        try {
+          const borrower = borrowerFor(application);
+          if (!borrower) throw new Error('Borrower details could not be found for this application.');
+          const principal = Number(application.approved_amount || 0);
+          const interest = Number(application.approved_total_interest || 0);
+          const totalRepayment = Number(application.approved_total_repayment || (principal + interest));
+          const loanNumber = accountNo();
+          const insertData = {
+            organization_id: orgId,
+            application_id: application.id,
+            loan_product_id: application.loan_product_id,
+            borrower_type: application.borrower_type,
+            member_id: application.member_id || null,
+            individual_borrower_id: application.individual_borrower_id || null,
+            principal_amount: principal,
+            total_interest: interest,
+            total_repayment: totalRepayment,
+            repayment_frequency: application.approved_repayment_frequency || 'monthly',
+            duration_count: Number(application.approved_duration || 1),
+            duration_unit: application.approved_duration_unit || 'months',
+            disbursed_on: disbursedOn,
+            first_due_date: firstDueDate,
+            status: 'ACTIVE',
+            loan_account_number: loanNumber
+          };
+          const insertResult = await safe(db.from('loan_accounts').insert(insertData).select('id').single());
+          if (insertResult.error) throw insertResult.error;
+          msg.textContent = `Loan account ${loanNumber} created. Refreshing account register…`;
+          await loanAccountsPage(c);
+        } catch (err) {
+          msg.textContent = `Could not create loan account: ${err.message || err}. No further action was taken.`;
+          submitBtn.disabled = false;
+        }
       });
-      c.addEventListener('input', ev => { if (ev.target.id === 'gora-loan-search') c.querySelector('[data-loan-view="accounts"]')?.click(); });
+      c.addEventListener('input', ev => {
+        if (ev.target.id !== 'gora-loan-account-search') return;
+        const term = ev.target.value.toLowerCase().trim();
+        const filtered = rows.filter(x => `${x.loan.loan_account_number} ${x.borrower} ${x.borrowerNo} ${x.product} ${x.loan.status}`.toLowerCase().includes(term));
+        renderRows(filtered);
+      });
     }
 
-    c.innerHTML = `<div class="page-heading"><div><h2>Loans &amp; Collections</h2><div class="sub">Loan accounts, month-to-date collections, progressive disbursements and collection performance.</div></div></div>
-      <div class="stats">${stat('Loan accounts',loans.length,'All recorded accounts','blue')}${stat('Principal disbursed',money(totalPrincipal),'Original principal','blue')}${stat('Posted repayments',money(totalPaid),'All posted repayments','good')}${stat('Outstanding',money(totalOutstanding),'Total repayment less posted payments','warn')}</div>
-      <div class="stats">${stat('Collections MTD',money(mtdCollected),'Posted repayments this month','good')}${stat('Disbursements MTD',money(mtdDisbursed),'Principal disbursed this month','blue')}${stat('Arrears accounts',arrearsRows.length,'Past-due schedule entries detected','warn')}</div>
-      <div class="panel"><div class="table-head"><h3>Loans operations</h3></div><div style="display:none" aria-hidden="true">
-  <button data-loan-view="accounts"></button>
-  <button data-loan-view="mtd"></button>
-  <button data-loan-view="disbursements"></button>
-  <button data-loan-view="rates"></button>
-  <button data-loan-view="arrears"></button>
-  <button data-loan-view="collection-sheet"></button>
-  <button data-loan-view="bulk-repayment"></button>
-  <button data-loan-view="loan-products"></button>
-  <button data-loan-view="reports"></button>
-</div>style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button class="secondary active" data-loan-view="accounts">Loan Accounts</button><button class="secondary" data-loan-view="mtd">Collection MTD</button><button class="secondary" data-loan-view="disbursements">Progressive Disbursements</button><button class="secondary" data-loan-view="rates">Collection Rates</button><button class="secondary" data-loan-view="arrears">Arrears</button><button class="secondary" data-loan-view="applications">Applications</button><button class="secondary" data-loan-view="collection-sheet">Collection Sheet</button><button class="secondary" data-loan-view="bulk-repayment">Bulk Repayments</button><button class="secondary" data-loan-view="loan-products">Loan Products</button><button class="secondary" data-loan-view="reports">Reports &amp; Export</button></div>
-      <label for="gora-loan-search">Search loan accounts</label><input id="gora-loan-search" type="search" placeholder="Borrower, loan number, product or status" style="width:100%;max-width:480px;margin:6px 0 14px;padding:10px;border:1px solid var(--border,#ddd);border-radius:8px">
-      <div id="gora-loan-report-content"><div class="tablebox" style="overflow-x:auto;width:100%;display:block"><table style="min-width:1000px;width:100%"><thead><tr><th>Loan reference</th><th>Borrower</th><th>Product</th><th>Principal</th><th>Loan + charges</th><th>Paid</th><th>Outstanding</th><th>Next due</th><th>Status</th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td>${esc(x.loan.loan_account_number||'—')}</td><td>${esc(x.borrower)}<div class="sub">${esc(x.borrowerNumber)}</div></td><td>${esc(x.product)}</td><td>${money(x.loan.principal_amount)}</td><td>${money(x.loan.total_repayment)}</td><td>${money(x.paid)}</td><td>${money(x.outstanding)}</td><td>${esc(x.nextDue)}</td><td>${esc(x.loan.status||'—')}</td></tr>`).join(''):`<tr><td colspan="9" class="empty">No loan accounts found.</td></tr>`}</tbody></table></div></div></div>
-      <div class="notice">Reporting note: collection figures use repayments with status POSTED. Monthly collection rate currently uses an estimated opening OLB based on principal less prior posted repayments. This report is for monitoring; it does not alter or post any financial transaction.</div>`;
-    const initialView=window.__goraRequestedLoanView||'accounts';
-window.__goraRequestedLoanView='accounts';
-c.querySelector(`[data-loan-view="${initialView}"]`)?.click();
+    function renderRows(list) {
+      const tbody = c.querySelector('#gora-loan-account-rows');
+      if (!tbody) return;
+      tbody.innerHTML = list.length ? list.map(x => `<tr>
+        <td>${esc(x.loan.loan_account_number || '—')}</td>
+        <td>${esc(x.borrower)}<div class="sub">${esc(x.borrowerNo)}</div></td>
+        <td>${esc(x.product)}</td><td>${money(x.loan.principal_amount)}</td>
+        <td>${money(x.loan.total_repayment)}</td><td>${money(x.paid)}</td>
+        <td>${money(x.outstanding)}</td><td>${esc(x.loan.disbursed_on || '—')}</td>
+        <td>${esc(x.loan.status || '—')}</td>
+        <td><button class="secondary" data-loan-account-detail="${esc(x.loan.id)}">View</button></td>
+      </tr>`).join('') : '<tr><td colspan="10" class="empty">No loan accounts found.</td></tr>';
+    }
+
+    c.innerHTML = `<div class="page-heading"><div><h2>Loan Accounts</h2><div class="sub">Disbursed loan accounts and balances. Accounts are created only from approved applications.</div></div></div>
+      <div class="stats">${stat('Loan accounts', loans.length, 'All recorded accounts', 'blue')}${stat('Principal disbursed', money(loans.reduce((s,l)=>s+Number(l.principal_amount||0),0)), 'Recorded principal', 'blue')}${stat('Posted repayments', money(repayments.filter(r=>String(r.status||'').toUpperCase()==='POSTED').reduce((s,r)=>s+Number(r.amount||0),0)), 'Payments posted', 'good')}${stat('Outstanding', money(rows.reduce((s,x)=>s+x.outstanding,0)), 'Total repayment less posted payments', 'warn')}</div>
+      <div class="panel"><div class="table-head"><h3>Loan account register</h3><button id="gora-create-loan-account">Create loan account</button></div>
+      <label for="gora-loan-account-search">Search accounts</label><input id="gora-loan-account-search" type="search" placeholder="Borrower, account number, product or status" style="width:100%;max-width:480px;margin:6px 0 14px;padding:10px;border:1px solid var(--border,#ddd);border-radius:8px">
+      <div class="tablebox" style="overflow-x:auto"><table style="min-width:1100px;width:100%"><thead><tr><th>Account number</th><th>Borrower</th><th>Product</th><th>Principal</th><th>Total repayment</th><th>Paid</th><th>Outstanding</th><th>Disbursed</th><th>Status</th><th>Action</th></tr></thead><tbody id="gora-loan-account-rows"></tbody></table></div></div>
+      <div id="gora-loan-account-form-wrap" class="panel hidden"><h3>Create loan account from approved application</h3><p class="sub">This records the approved loan disbursement. The amount must match the approved amount.</p>
+        <form id="gora-loan-account-form">
+          <label>Approved application</label><select name="application_id" required style="width:100%;padding:10px;margin:6px 0 12px"><option value="">Select approved application</option>${availableApps.map(a=>{const b=borrowerFor(a);return `<option value="${esc(a.id)}">${esc(a.application_number||a.id)} — ${esc(b?.full_name||'Borrower')} — ${money(a.approved_amount)}</option>`;}).join('')}</select>
+          <label>Disbursed amount (KES)</label><input name="disbursed_amount" type="number" min="1" step="0.01" required style="width:100%;padding:10px;margin:6px 0 12px">
+          <label>Disbursement date</label><input name="disbursed_on" type="date" required style="width:100%;padding:10px;margin:6px 0 12px">
+          <label>First repayment date</label><input name="first_due_date" type="date" required style="width:100%;padding:10px;margin:6px 0 12px">
+          <div id="gora-loan-account-message" class="notice" role="status"></div>
+          <button type="button" id="gora-save-loan-account">Confirm disbursement &amp; create account</button> <button type="button" class="secondary" id="gora-cancel-loan-account">Cancel</button>
+        </form>
+      </div><div id="gora-loan-account-detail" class="panel hidden"></div>
+      <div class="notice">This first stage creates the loan account and records the approved principal and dates. Disbursement method/reference ledger, repayment schedule generation, and restructuring will be added in later stages.</div>`;
+
+    renderRows(rows);
   } catch (e) {
-    c.innerHTML = `<div class="panel"><h3>Could not load Loans &amp; Collections</h3><p>${esc(e.message || e)}</p><p>No loan data has been changed.</p></div>`;
+    c.innerHTML = `<div class="panel"><h3>Could not load Loan Accounts</h3><p>${esc(e.message || e)}</p><p>No loan data has been changed.</p></div>`;
   }
 }
-
             
 function esc(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 async function load(page){$('title').textContent=page;const c=$('content');c.innerHTML='<div class="panel">Loading records…</div>';try{if(page==='Dashboard'){await dashboard(c);return}if(['Finance Overview','Transactions','Income','Expenses','Petty Cash','Capital Management','Daily Reconciliation','Accounting','Financial Reports'].includes(page)){await financePage(page,c);return}if(page==='Chamas'){await chamaPage(c);return}if(page==='Members'){await membersPage(c);return}if(page==='Applications'){await applicationsPage(c);return}if(page==='Performance'){await performancePage(c);return}if(page==='Settings'){c.innerHTML='<div class="panel"><h3>System settings</h3><p>Loan product rates and fees must be administered by the GORA admin only. Configuration controls will be enabled after permission policies are verified.</p></div>';return}if(page==='Loans'){
