@@ -2327,7 +2327,25 @@ async function performancePage(c){
       <div class="stats">${stat('Loan accounts', loans.length, 'All recorded accounts', 'blue')}${stat('Principal disbursed', money(loans.reduce((s,l)=>s+Number(l.principal_amount||0),0)), 'Recorded principal', 'blue')}${stat('Posted repayments', money(repayments.filter(r=>String(r.status||'').toUpperCase()==='POSTED').reduce((s,r)=>s+Number(r.amount||0),0)), 'Payments posted', 'good')}${stat('Outstanding', money(rows.reduce((s,x)=>s+x.outstanding,0)), 'Total repayment less posted payments', 'warn')}</div>
       <div class="panel"><div class="table-head"><h3>Loan account register</h3><button id="gora-create-loan-account">Create loan account</button></div>
       <label for="gora-loan-account-search">Search accounts</label><input id="gora-loan-account-search" type="search" placeholder="Borrower, account number, product or status" style="width:100%;max-width:480px;margin:6px 0 14px;padding:10px;border:1px solid var(--border,#ddd);border-radius:8px">
-      <div class="tablebox" style="overflow-x:auto"><table style="min-width:1100px;width:100%"><thead><tr><th>Account number</th><th>Borrower</th><th>Product</th><th>Principal</th><th>Total repayment</th><th>Paid</th><th>Outstanding</th><th>Disbursed</th><th>Status</th><th>Action</th></tr></thead><tbody id="gora-loan-account-rows"></tbody></table></div></div>
+      <div class="tablebox" style="overflow-x:auto"><table style="min-width:1100px;width:100%">
+<thead>
+  <tr>
+    <th>Account number</th>
+    <th>Borrower / Category</th>
+    <th>Loan product</th>
+    <th>Principal</th>
+    <th>Interest &amp; charges</th>
+    <th>Total repayment</th>
+    <th>Amount paid</th>
+    <th>Outstanding</th>
+    <th>Disbursement date</th>
+    <th>First repayment</th>
+    <th>Maturity date</th>
+    <th>Loan status</th>
+    <th>Actions</th>
+  </tr>
+</thead>
+<tbody id="gora-loan-account-rows"></tbody></table></div></div>
       <div id="gora-loan-account-form-wrap" class="panel hidden"><h3>Create loan account from approved application</h3><p class="sub">This records the approved loan disbursement. The amount must match the approved amount.</p>
         <form id="gora-loan-account-form">
           <label>Approved application</label><select name="application_id" required style="width:100%;padding:10px;margin:6px 0 12px"><option value="">Select approved application</option>${availableApps.map(a=>{const b=borrowerFor(a);return `<option value="${esc(a.id)}">${esc(a.application_number||a.id)} — ${esc(b?.full_name||'Borrower')} — ${money(a.approved_amount)}</option>`;}).join('')}</select>
