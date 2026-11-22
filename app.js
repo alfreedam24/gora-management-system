@@ -93,7 +93,7 @@ $('nav').addEventListener('click',e=>{
   if(!b)return;
 
   const page=b.dataset.page;
-
+if(page==='Member Profiles'){location.href='member-profiles.html';return}
   if(page==='Members'){location.href='members-v2.html';return}
   if(page==='Approvals'){location.href='member-approvals-v2.html';return}
   if(page==='Chamas'){location.href='chama-management-v2.html';return}
