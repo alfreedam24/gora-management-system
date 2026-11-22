@@ -2317,8 +2317,19 @@ async function performancePage(c){
         <td>${esc(x.maturityDate || '—')}</td>
         <td>${esc(x.loan.status || '—')}</td>
         <td>
-          <button class="secondary" data-loan-account-detail="${esc(x.loan.id)}">View</button>
-        </td>
+  <details>
+    <summary style="cursor:pointer;font-weight:600">Actions ▾</summary>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:8px;min-width:150px">
+      <button class="secondary" data-loan-account-detail="${esc(x.loan.id)}">View details</button>
+      <button class="secondary" disabled>Repayment schedule</button>
+      <button class="secondary" disabled>Loan statement</button>
+      <button class="secondary" disabled>Record repayment</button>
+      <button class="secondary" disabled>Guarantors &amp; collateral</button>
+      <button class="secondary" disabled>Loan agreement</button>
+      <button class="secondary" disabled>Restructure / settle</button>
+    </div>
+  </details>
+</td>
       </tr>`).join('') : '<tr><td colspan="13" class="empty">No loan accounts found.</td></tr>';
     }
 
