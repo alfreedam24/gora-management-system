@@ -2213,6 +2213,73 @@ safe(db.from('loan_repayments').select('id,loan_account_id,payment_date,amount,p
         const cancelBtn = ev.target.closest('#gora-cancel-loan-account');
         const submitBtn = ev.target.closest('#gora-save-loan-account');
         const detailBtn = ev.target.closest('[data-loan-account-detail]');
+        
+const statementBtn = ev.target.closest('[data-loan-account-statement]');
+
+if (statementBtn) {
+  const id = statementBtn.getAttribute('data-loan-account-statement');
+  const item = rows.find(x => x.loan.id === id);
+  const detail = c.querySelector('#gora-loan-account-detail');
+
+  if (item && detail) {
+    const accountPayments = repayments
+      .filter(r => r.loan_account_id === id)
+      .sort((a, b) => String(b.payment_date || '').localeCompare(String(a.payment_date || '')));
+
+    const postedPayments = accountPayments.filter(
+      r => String(r.status || '').toUpperCase() === 'POSTED'
+    );
+
+    const postedTotal = postedPayments.reduce(
+      (sum, r) => sum + Number(r.amount || 0), 0
+    );
+
+    detail.innerHTML = `
+      <h3>Loan Statement</h3>
+      <p><b>Account number:</b> ${esc(item.loan.loan_account_number || '—')}</p>
+      <p><b>Borrower:</b> ${esc(item.borrower)}</p>
+
+      <div class="stats">
+        ${stat('Total repayment', money(item.loan.total_repayment), 'Loan amount due', 'blue')}
+        ${stat('Posted payments', money(postedTotal), 'Confirmed payments only', 'good')}
+        ${stat('Outstanding balance', money(Math.max(0, Number(item.loan.total_repayment || 0) - postedTotal)), 'After posted payments', 'warn')}
+      </div>
+
+      <h4>Repayment transactions</h4>
+      <div class="tablebox" style="overflow-x:auto">
+        <table style="min-width:850px;width:100%">
+          <thead>
+            <tr>
+              <th>Payment date</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Reference</th>
+              <th>Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${accountPayments.length ? accountPayments.map(r => `
+              <tr>
+                <td>${esc(r.payment_date || '—')}</td>
+                <td>${money(r.amount)}</td>
+                <td>${esc(r.payment_method || '—')}</td>
+                <td>${esc(r.reference_number || '—')}</td>
+                <td>${esc(r.status || '—')}</td>
+                <td>${esc(r.notes || '—')}</td>
+              </tr>
+            `).join('') : '<tr><td colspan="6">No repayment transactions recorded.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    detail.classList.remove('hidden');
+    detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  return;
+}
+        
         if (cancelBtn) {
           c.querySelector('#gora-loan-account-form-wrap')?.classList.add('hidden');
           return;
@@ -2360,7 +2427,7 @@ detail.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:6px;padding:8px;min-width:150px">
       <button class="secondary" data-loan-account-detail="${esc(x.loan.id)}">View details</button>
       <button class="secondary" disabled>Repayment schedule</button>
-      <button class="secondary" disabled>Loan statement</button>
+      <button class="secondary" data-loan-account-statement="${esc(x.loan.id)}">Loan statement</button>
       <button class="secondary" disabled>Record repayment</button>
       <button class="secondary" disabled>Guarantors &amp; collateral</button>
       <button class="secondary" disabled>Loan agreement</button>
