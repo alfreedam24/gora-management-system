@@ -2153,10 +2153,8 @@ async function performancePage(c){
       safe(db.from('individual_borrowers').select('id,borrower_number,full_name,phone').eq('organization_id', orgId)),
       safe(db.from('loan_products').select('id,product_name').eq('organization_id', orgId)),
       safe(db.from('loan_applications').select('id,application_number,borrower_type,member_id,individual_borrower_id,loan_product_id,approved_amount,approved_interest_rate,approved_interest_method,approved_duration,approved_duration_unit,approved_repayment_frequency,approved_total_interest,approved_total_repayment,status,approved_at').eq('organization_id', orgId).eq('status', 'approved').limit(1000)),
-      safe(db.from('loan_repayments').select('loan_account_id,amount,status').eq('organization_idsafe(db.from('loan_repayments').select('id,loan_account_id,payment_date,amount,payment_method,reference_number,notes,status,created_at').eq('organization_id', orgId).order('payment_date', { ascending: false }).limit(5000))
-    for (const result of [loansResult, membersResult, individualsResult, productsResult, applicationsResult, repaymentsResult]) {
-      if (result.error) throw result.error;
-    }
+      
+safe(db.from('loan_repayments').select('id,loan_account_id,payment_date,amount,payment_method,reference_number,notes,status,created_at').eq('organization_id', orgId).order('payment_date', { ascending: false }).limit(5000))
 
     const loans = loansResult.data || [];
     const members = membersResult.data || [];
