@@ -1,54 +1,78 @@
 <!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#075985"><title>GORA | Management System</title>
-<link rel="stylesheet" href="style.css">
-</head><body>
-<section id="login" class="login-wrap"><div class="login-card">
-<div class="brand-mark">G</div><div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div>
-<h1>Management workspace</h1><p>Secure sign-in for authorised GORA staff.</p>
-<label>Email address<input id="email" type="email" autocomplete="username"></label>
-<label>Password<input id="password" type="password" autocomplete="current-password"></label>
-<button id="signin" class="primary full">Sign in</button><p id="msg" class="message" role="status"></p>
-<details><summary>Connection settings</summary>
-<label>Supabase project URL<input id="url" placeholder="https://your-project.supabase.co"></label>
-<label>Supabase anon / publishable key<textarea id="key" rows="3"></textarea></label>
-<button id="save" class="secondary full">Save connection settings</button>
-<p class="hint">Use only the public anon/publishable key. Never enter a service-role or secret key.</p>
-</details></div></section>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102b5c">
+  <title>GORA 2.0 | Members</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="brand-icon">G</div>
+      <div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div>
+      <h1>GORA 2.0</h1>
+      <p class="muted">Secure management workspace</p>
+      <form id="loginForm">
+        <label>Email address<input id="loginEmail" type="email" autocomplete="username" required></label>
+        <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+        <button class="btn btn-primary btn-wide" type="submit">Sign in</button>
+      </form>
+      <p id="loginMessage" class="message" role="status"></p>
+      <details class="connection-settings">
+        <summary>Supabase connection settings</summary>
+        <label>Project URL<input id="supabaseUrl" type="url" placeholder="https://your-project.supabase.co"></label>
+        <label>Public anon / publishable key<textarea id="supabaseKey" rows="3" placeholder="Public key only"></textarea></label>
+        <button id="saveConnection" class="btn btn-soft btn-wide" type="button">Save connection settings</button>
+        <p class="small-note">Never enter a service-role or secret key in this browser application.</p>
+      </details>
+    </div>
+  </section>
 
-<div id="app" class="shell hidden">
-<aside class="sidebar" id="sidebar">
-<div class="side-brand"><div class="brand-mark small">G</div><div><b>GORA</b><small>SAVINGS &amp; CREDIT GROUP</small></div></div>
-<div class="side-label">WORKSPACE</div>
-<nav id="nav">
-<button class="nav-item active" data-page="Dashboard"><span>▦</span>Dashboard</button>
-<div class="nav-label">PEOPLE</div>
-<button class="nav-item" data-page="Members"><span>♙</span>Members registry</button>
-<button class="nav-item" data-page="Chamas"><span>♧</span>Chama management</button>
-<div class="nav-label">CREDIT</div>
-<button class="nav-item" data-page="Applications"><span>▤</span>Loan applications</button>
-<button class="nav-item" data-page="Loans"><span>▣</span>Active loans</button>
-<button class="nav-item" data-page="Installments"><span>◷</span>Installments &amp; due dates</button>
-<button class="nav-item" data-page="Arrears"><span>⚠</span>Loan arrears</button>
-<button class="nav-item" data-page="Repayments"><span>↙</span>Collections &amp; repayments</button>
-<div class="nav-label">FINANCE</div>
-<button class="nav-item" data-page="Savings"><span>◈</span>Savings ledger</button>
-<button class="nav-item" data-page="Cashbook"><span>▧</span>Cashbook</button>
-<button class="nav-item" data-page="Petty Cash"><span>◉</span>Petty cash</button>
-<button class="nav-item" data-page="Expenses"><span>−</span>Expenses</button>
-<div class="nav-label">MANAGEMENT</div>
-<button class="nav-item" data-page="Performance"><span>▥</span>Performance insights</button>
-<button class="nav-item" data-page="Reports"><span>▤</span>Reports</button>
-<button class="nav-item" data-page="Staff"><span>♙</span>Staff &amp; permissions</button>
-<button class="nav-item" data-page="Settings"><span>⚙</span>System settings</button>
-</nav>
-<div class="side-bottom"><div class="signed-in"><span class="avatar">G</span><div><b id="who">GORA user</b><small id="role">Staff workspace</small></div></div><button id="logout" class="logout">↪ Sign out</button></div>
-</aside>
-<main class="main">
-<header class="topbar"><button id="menuToggle" class="menu-toggle" aria-label="Open menu">☰</button><div><div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div><h1 id="title">Dashboard</h1></div><div class="top-right"><span class="secure">● Secure workspace</span><span class="user-pill" id="topWho">Signed in</span></div></header>
-<div class="page-wrap"><div id="content"><div class="panel">Loading your GORA workspace…</div></div>
-<footer>GORA Savings &amp; Credit Group <span>•</span> Internal management system</footer></div>
-</main></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script>
-</body></html>
+  <div id="appShell" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand"><div class="brand-icon brand-small">G</div><div><b>GORA 2.0</b><small>SAVINGS &amp; CREDIT GROUP</small></div></div>
+      <div class="sidebar-caption">BUILDING MODULES</div>
+      <nav id="navigation" class="navigation">
+        <button class="nav-item active" data-module="Members"><span class="nav-symbol blue">♙</span><span>Members</span><span class="nav-state">NOW</span></button>
+        <button class="nav-item" data-module="Chamas"><span class="nav-symbol teal">♧</span><span>Chamas</span></button>
+        <button class="nav-item" data-module="Individual Borrowers"><span class="nav-symbol purple">♧</span><span>Individual borrowers</span></button>
+        <div class="nav-section">CREDIT</div>
+        <button class="nav-item" data-module="Loan Products"><span class="nav-symbol orange">▤</span><span>Loan products</span></button>
+        <button class="nav-item" data-module="Loan Applications"><span class="nav-symbol blue">▣</span><span>Loan applications</span></button>
+        <button class="nav-item" data-module="Assessment & Approval"><span class="nav-symbol purple">✓</span><span>Assessment &amp; approval</span></button>
+        <button class="nav-item" data-module="Disbursement"><span class="nav-symbol teal">↗</span><span>Disbursement</span></button>
+        <button class="nav-item" data-module="Repayments"><span class="nav-symbol green">↙</span><span>Repayments</span></button>
+        <button class="nav-item" data-module="Schedules & Arrears"><span class="nav-symbol orange">◷</span><span>Schedules &amp; arrears</span></button>
+        <div class="nav-section">FINANCE</div>
+        <button class="nav-item" data-module="Savings"><span class="nav-symbol teal">◈</span><span>Savings &amp; shares</span></button>
+        <button class="nav-item" data-module="Cashbook"><span class="nav-symbol blue">▧</span><span>Cashbook &amp; expenses</span></button>
+        <button class="nav-item" data-module="Accounting"><span class="nav-symbol purple">▥</span><span>Accounting &amp; ledger</span></button>
+        <button class="nav-item" data-module="Reports"><span class="nav-symbol orange">▤</span><span>Reports</span></button>
+        <div class="nav-section">OPERATIONS</div>
+        <button class="nav-item" data-module="Calendar"><span class="nav-symbol blue">▦</span><span>Calendar &amp; reminders</span></button>
+        <button class="nav-item" data-module="Staff & Settings"><span class="nav-symbol purple">⚙</span><span>Staff, branches &amp; settings</span></button>
+        <button class="nav-item nav-dashboard" data-module="Dashboard"><span class="nav-symbol navy">▦</span><span>Dashboard</span><span class="nav-state">LAST</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="signed-user"><div class="user-avatar" id="userAvatar">G</div><div><b id="signedUserName">GORA staff</b><small id="signedUserRole">Staff workspace</small></div></div>
+        <button id="signOut" class="sign-out">↪ Sign out</button>
+      </div>
+    </aside>
+    <main class="main-area">
+      <header class="topbar">
+        <button id="mobileMenu" class="mobile-menu" type="button" aria-label="Open navigation">☰</button>
+        <div class="topbar-title"><div class="eyebrow">GORA SAVINGS &amp; CREDIT GROUP</div><h1 id="pageTitle">Members</h1></div>
+        <div class="topbar-right"><select id="organizationSelect" class="org-select hidden" aria-label="Organization"></select><span class="secure-pill">● Secure workspace</span></div>
+      </header>
+      <div id="pageContent" class="page-content"><div class="loading-panel">Loading your workspace…</div></div>
+      <footer class="app-footer">GORA 2.0 <span>•</span> Member records are protected by staff permissions</footer>
+    </main>
+  </div>
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
