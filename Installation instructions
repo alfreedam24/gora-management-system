@@ -1,0 +1,15 @@
+GORA 2.0 — Members Module
+This is the clean GORA 2.0 frontend foundation with Members as the first module. Replace the old root index.html, style.css, and app.js completely; do not paste this into the legacy membersPage() function.
+Install
+Upload the three files in this ZIP to the root of the gora-v2-clean-build branch, replacing the existing files. Commit them together. Then open the deployed site and sign in. The Supabase project URL is prefilled; use the public anon/publishable key only. Never use a service-role or secret key in browser code.
+Includes
+Colourful responsive shell with persistent navigation; Dashboard is last in the build order
+Member registration with optional phone, photo, ID images, next-of-kin and supporting files
+Custom fields and configurable member-number format
+Member profile, loan/schedule and savings summaries
+Approval, restrictions and branch transfer
+Search across identity/contact/address, loan officer and custom fields
+Last-loan status filters, CSV bulk import/export
+SMS/email/WhatsApp device composers
+No sample borrower or financial data is generated. Backend changes are already applied to the connected Supabase project; see BACKEND-CHANGES.md.
+Add Loan/Add Savings and the borrower control panel retain selected-member context and connect as those later modules are built. Shares paid are not fabricated because a separate share ledger has not been built yet.
