@@ -85,7 +85,7 @@ $('loginForm').addEventListener('submit',async(e)=>{e.preventDefault();$('loginM
 $('signOut').addEventListener('click',async()=>{if(db)await db.auth.signOut();location.reload();});$('mobileMenu').addEventListener('click',()=>$('sidebar').classList.toggle('open'));
 $('organizationSelect').addEventListener('change',async()=>{organization=organizations.find(o=>o.id===$('organizationSelect').value)||organizations[0];profile.roleCode=organization.roleCode;profile.roleName=organization.roleName;await loadReferenceData();membersPageIndex=0;selectedMemberIds.clear();await renderMembers();});
 $('navigation').addEventListener('click',async(e)=>{const button=e.target.closest('[data-module]');if(!button)return;document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x===button));$('sidebar').classList.remove('open');const moduleName=button.dataset.module;$('pageTitle').textContent=moduleName;if(moduleName==='Members'){
-  await renderMembers();
+  await renderMembers();});
   return;
 }
 
