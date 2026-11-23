@@ -58,7 +58,7 @@ async function loadReferenceData(){
   safeQuery(db.from('gora_member_custom_fields').select('id,field_key,label,field_type,options,is_required,is_active,display_order').eq('organization_id',organization.id).eq('is_active',true).order('display_order'))
  ]);
  branches=branchRows||[];chamas=chamaRows||[];customFields=fieldRows||[];
- const roleRows=await safeQuery(db.from('user_roles').select('user_id,role_id').eq('organization_id',organization.id).eq('is_active',true).lte('starts_on',todayLocal()).or(`expires_on.is.null,expires_on.gte.${todayLocal()}`));
+ const roleRows=await safeQuery(db.from('user_roles').select('user_id,role_id').eq('organization_id',organization.id).eq('is_active',true));
  const roleIds=[...new Set(roleRows.map(x=>x.role_id))];
  const roles=roleIds.length?await safeQuery(db.from('roles').select('id,role_code').in('id',roleIds)):[];
  const officerRoleIds=roles.filter(x=>x.role_code==='LOAN_OFFICER').map(x=>x.id);
