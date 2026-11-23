@@ -84,15 +84,33 @@ $('saveConnection').addEventListener('click',()=>{saveConnection();toast(connect
 $('loginForm').addEventListener('submit',async(e)=>{e.preventDefault();$('loginMessage').textContent='';if(!connect()){setMessage('loginMessage','Save your Supabase connection settings first.');return;}try{const {data,error}=await db.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});if(error)throw error;await finishLogin(data.user);}catch(err){setMessage('loginMessage',err.message||'Unable to sign in.');}});
 $('signOut').addEventListener('click',async()=>{if(db)await db.auth.signOut();location.reload();});$('mobileMenu').addEventListener('click',()=>$('sidebar').classList.toggle('open'));
 $('organizationSelect').addEventListener('change',async()=>{organization=organizations.find(o=>o.id===$('organizationSelect').value)||organizations[0];profile.roleCode=organization.roleCode;profile.roleName=organization.roleName;await loadReferenceData();membersPageIndex=0;selectedMemberIds.clear();await renderMembers();});
-$('navigation').addEventListener('click',async(e)=>{const button=e.target.closest('[data-module]');if(!button)return;document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x===button));$('sidebar').classList.remove('open');const moduleName=button.dataset.module;$('pageTitle').textContent=moduleName;if(moduleName==='Members'){
-  await renderMembers();});
-  return;
-}
 
-if(moduleName==='Chamas' || moduleName==='Groups'){
-  await renderChamas();
-  return;
-}
+$('navigation').addEventListener('click', async (e) => {
+  const button = e.target.closest('[data-module]');
+  if (!button) return;
+
+  document.querySelectorAll('.nav-item').forEach(x =>
+    x.classList.toggle('active', x === button)
+  );
+
+  $('sidebar').classList.remove('open');
+
+  const moduleName = button.dataset.module;
+  $('pageTitle').textContent = moduleName;
+
+  if (moduleName === 'Members') {
+    await renderMembers();
+    return;
+  }
+
+  if (moduleName === 'Chamas' || moduleName === 'Groups') {
+    await renderChamas();
+    return;
+  }
+
+  renderFutureModule(moduleName);
+});
+
 
 renderFutureModule(moduleName);
 function renderFutureModule(moduleName){$('pageContent').innerHTML=`<section class="future-module"><div class="future-icon">✦</div><h2>${esc(moduleName)}</h2><p>This module is scheduled in the GORA 2.0 build order. We are finishing and testing Members first, then we will connect this module to the same database and navigation.</p><div class="note-box">The dashboard is intentionally reserved for the final stage, after all modules and financial data are connected.</div><button class="btn btn-primary" type="button" onclick="document.querySelector('[data-module=Members]').click()">Return to Members</button></section>`;}
@@ -234,7 +252,7 @@ document.addEventListener('click',async(e)=>{const button=e.target.closest('.rem
 $('supabaseUrl').value=localStorage.getItem('gora2_url')||localStorage.getItem('gora_url')||'https://ptqenrbebssgfrhcuyuw.supabase.co';$('supabaseKey').value=localStorage.getItem('gora2_key')||localStorage.getItem('gora_key')||'';
 // Resume an existing authenticated session when the public client settings are present.
 (async()=>{if(!connect())return;try{const {data}=await db.auth.getSession();if(data?.session?.user)await finishLogin(data.session.user);}catch(e){console.warn('Session restore skipped:',e.message);}})();
-    }
+    
 /* GORA 2.0 — CHAMAS MODULE: GROUP DIRECTORY */
 
 let chamaSearch = '';
