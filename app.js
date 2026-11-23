@@ -2232,7 +2232,48 @@ async function performancePage(c){
           const item = rows.find(x => x.loan.id === id);
           const detail = c.querySelector('#gora-loan-account-detail');
           if (item && detail) {
-            detail.innerHTML = `<h3>Loan account details</h3><p><b>Account:</b> ${esc(item.loan.loan_account_number || '—')}</p><p><b>Borrower:</b> ${esc(item.borrower)} (${esc(item.borrowerNo)})</p><p><b>Product:</b> ${esc(item.product)}</p><p><b>Principal:</b> ${money(item.loan.principal_amount)}</p><p><b>Total repayment:</b> ${money(item.loan.total_repayment)}</p><p><b>Paid:</b> ${money(item.paid)}</p><p><b>Outstanding:</b> ${money(item.outstanding)}</p><p><b>Disbursed:</b> ${esc(item.loan.disbursed_on || '—')}</p><p><b>First due:</b> ${esc(item.loan.first_due_date || '—')}</p><p><b>Status:</b> ${esc(item.loan.status || '—')}</p>`;
+            const total = Number(item.loan.total_repayment || 0);
+const principal = Number(item.loan.principal_amount || 0);
+const interest = Number(item.loan.total_interest || 0);
+const paid = Number(item.paid || 0);
+const outstanding = Number(item.outstanding || 0);
+const paidPercent = total > 0 ? Math.min(100, Math.max(0, paid / total * 100)) : 0;
+
+detail.innerHTML = `
+  <h3>Loan account profile</h3>
+
+  <div class="stats">
+    ${stat('Account number', esc(item.loan.loan_account_number || '—'), 'Loan reference', 'blue')}
+    ${stat('Borrower', esc(item.borrower), esc(item.borrowerNo), 'blue')}
+    ${stat('Borrower category', esc(item.borrowerCategory), 'Account classification', 'blue')}
+    ${stat('Loan product', esc(item.product), 'Approved product', 'blue')}
+  </div>
+
+  <h4>Loan financial position</h4>
+  <div class="stats">
+    ${stat('Principal', money(principal), 'Amount disbursed', 'blue')}
+    ${stat('Interest & charges', money(interest), 'Recorded total interest', 'warn')}
+    ${stat('Total repayment', money(total), 'Principal plus interest', 'blue')}
+    ${stat('Amount paid', money(paid), 'Posted repayments only', 'good')}
+    ${stat('Outstanding balance', money(outstanding), 'Remaining to repay', 'warn')}
+  </div>
+
+  <div class="panel">
+    <b>Repayment progress</b>
+    <p>${paidPercent.toFixed(1)}% repaid</p>
+    <div style="height:12px;background:var(--border,#ddd);border-radius:10px;overflow:hidden">
+      <div style="height:100%;width:${paidPercent}%;background:var(--primary,#2563eb);border-radius:10px"></div>
+    </div>
+  </div>
+
+  <h4>Loan dates & terms</h4>
+  <p><b>Disbursement date:</b> ${esc(item.loan.disbursed_on || '—')}</p>
+  <p><b>First repayment date:</b> ${esc(item.loan.first_due_date || '—')}</p>
+  <p><b>Maturity date:</b> ${esc(item.maturityDate || '—')}</p>
+  <p><b>Repayment frequency:</b> ${esc(item.loan.repayment_frequency || '—')}</p>
+  <p><b>Loan duration:</b> ${esc(item.loan.duration_count || '—')} ${esc(item.loan.duration_unit || '')}</p>
+  <p><b>Loan status:</b> ${esc(item.loan.status || '—')}</p>
+`;
             detail.classList.remove('hidden');
             detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
