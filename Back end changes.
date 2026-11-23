@@ -1,0 +1,12 @@
+GORA 2.0 Members backend — applied changes
+The connected Supabase project received these additive migrations on 2026-11-23. Existing records were preserved.
+20261123130712 — gora_members_schema_additions
+20261123130756 — gora_members_registration_and_controls
+20261123130909 — gora_members_search_and_filter
+20261123131540 — gora_member_restriction_audit_rpc
+20261123131609 — gora_member_document_library
+20261123132026 — gora_member_profile_edit_rpc
+20261123132103 — gora_member_search_address_fields
+Added support: optional mobile and extended identity/contact fields; custom fields; member number format and secure counter; pending registration and approval; search and last-loan filters; restrictions with audited removal; branch transfer; private member documents (10 MB maximum); profile updates.
+Frontend RPCs: register_member_v3, approve_member_v2, search_members_v2, save_member_number_settings, update_member_profile_v2, transfer_member_branch_v2, remove_member_restriction_v2.
+No borrower was inserted during this build. The project currently contains one existing member record.
