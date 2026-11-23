@@ -114,63 +114,62 @@ function stat(label,value,foot='',kind=''){return `<div class="stat ${kind}"><di
 function table(title,cols,rows){return `<div class="tablebox"><div class="table-head"><h3>${title}</h3></div><table><thead><tr>${cols.map(c=>`<th>${c.replaceAll('_',' ')}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${cols.map(c=>`<td>${String(r[c]??'—')}</td>`).join('')}</tr>`).join(''):`<tr><td class="empty" colspan="${cols.length}">No records found.</td></tr>`}</tbody></table></div>`}
 
 async function dashboard(c){
- const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- const monthKey=d=>String(d||'').slice(0,7), money=n=>cash(Math.max(0,Number(n)||0));
- const [m,ch,l,r,apps,inst]=await Promise.all([
-  safe(db.from('members').select('id',{count:'exact',head:true})),
-  safe(db.from('chamas').select('id',{count:'exact',head:true}).eq('status','active')),
-  safe(db.from('loans').select('id,principal,total_payable,status,disbursement_date')),
-  safe(db.from('repayments').select('amount,payment_date')),
-  safe(db.from('loan_applications').select('id,status')),
-  safe(db.from('installment_balances').select('loan_id,balance,due_date,payment_status'))
- ]);
- const allLoans=l.data||[],reps=r.data||[],ins=inst.data||[];
- const issuedLoans=allLoans.filter(x=>x.disbursement_date&&!['pending','approved','rejected','cancelled'].includes(String(x.status||'').toLowerCase()));
- const issuedIds=new Set(issuedLoans.map(x=>x.id));
- const paid=reps.reduce((s,x)=>s+Number(x.amount||0),0);
- const principal=issuedLoans.reduce((s,x)=>s+Number(x.principal||0),0);
- const portfolioInst=ins.filter(x=>issuedIds.has(x.loan_id));
- const outstanding=portfolioInst.reduce((s,x)=>s+Number(x.balance||0),0);
- const overdue=portfolioInst.filter(x=>x.due_date<today&&Number(x.balance)>0);
- const arrears=overdue.reduce((s,x)=>s+Number(x.balance||0),0);
- const due=portfolioInst.filter(x=>x.due_date===today&&Number(x.balance)>0);
- const dueToday=due.reduce((s,x)=>s+Number(x.balance||0),0);
- const daysLate=d=>Math.floor((Date.parse(today+'T00:00:00Z')-Date.parse(String(d)+'T00:00:00Z'))/86400000);
- const ageing=[['1–7 days',1,7],['8–30 days',8,30],['31–60 days',31,60],['Over 60 days',61,Infinity]];
- const ageRows=ageing.map(([label,from,to])=>{const rows=overdue.filter(x=>daysLate(x.due_date)>=from&&daysLate(x.due_date)<=to);return {label,count:rows.length,amount:rows.reduce((s,x)=>s+Number(x.balance||0),0)}});
- const pending=(apps.data||[]).filter(x=>String(x.status||'').toLowerCase()==='pending').length;
- const activeLoans=issuedLoans.filter(x=>!['completed','closed','defaulted','written_off'].includes(String(x.status||'').toLowerCase())).length;
- const completed=issuedLoans.filter(x=>['completed','closed'].includes(String(x.status||'').toLowerCase())).length;
- const defaulted=issuedLoans.filter(x=>['defaulted','written_off'].includes(String(x.status||'').toLowerCase())).length;
- const now=new Date(),months=[];
- for(let i=5;i>=0;i--){months.push(new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-i,1)).toISOString().slice(0,7));}
- const trend=months.map(k=>({month:k,disbursed:issuedLoans.filter(x=>monthKey(x.disbursement_date)===k).reduce((s,x)=>s+Number(x.principal||0),0),collected:reps.filter(x=>monthKey(x.payment_date)===k).reduce((s,x)=>s+Number(x.amount||0),0)}));
- const fmtMonth=k=>new Date(k+'-01T00:00:00').toLocaleDateString('en-KE',{month:'short',year:'2-digit'});
- c.innerHTML=`<div class="page-heading"><div><h2>Good day, ${esc(profile?.full_name||'GORA team')}</h2><div class="sub">Live portfolio and operations overview · ${today} (Kenya time)</div></div><span class="pill">LIVE DATABASE</span></div>
- <div class="stats">
- ${stat('Registered members',m.count||0,'All member records','blue')}
- ${stat('Active chamas',ch.count||0,'Groups marked active','good')}
- ${stat('Loans disbursed',money(principal),'Principal of disbursed loans','blue')}
- ${stat('Total repayments',money(paid),'All recorded repayments','good')}
- ${stat('Outstanding balance',money(outstanding),'Unpaid installment balances','warn')}
- ${stat('Loan arrears',money(arrears),'Past-due unpaid installments','red')}
- ${stat('Due today',money(dueToday),due.length+' unpaid installments','warn')}
- ${stat('Pending applications',pending,'Awaiting administrator review','blue')}
- </div>
- <div class="notice">Portfolio balances use installment balances for loans with a recorded disbursement date. Repayments shown are all recorded repayments. Confirm database access and payment allocation before using these figures for financial decisions.</div>
- <div class="grid-two"><div class="panel"><h3>Portfolio status</h3>
- <div class="metric-line"><span>Disbursed loans</span><b>${issuedLoans.length}</b></div>
- <div class="metric-line"><span>Active loans</span><b>${activeLoans}</b></div>
- <div class="metric-line"><span>Completed / closed</span><b>${completed}</b></div>
- <div class="metric-line"><span>Defaulted / written off</span><b>${defaulted}</b></div>
- <div class="metric-line"><span>Installments overdue</span><b>${overdue.length}</b></div></div>
- <div class="panel"><h3>Arrears ageing</h3>
- ${ageRows.map(a=>`<div class="metric-line"><span>${a.label} (${a.count})</span><b>${money(a.amount)}</b></div>`).join('')}
- <div class="metric-line"><span><b>Total arrears</b></span><b>${money(arrears)}</b></div></div></div>
- <div class="panel"><h3>Six-month activity</h3><div class="sub">Disbursements are principal issued; collections are repayments recorded in each month.</div>
- ${trend.map(t=>`<div class="metric-line"><span>${fmtMonth(t.month)}</span><span>Issued: <b>${money(t.disbursed)}</b> · Collected: <b>${money(t.collected)}</b></span></div>`).join('')}
- </div>
- <div class="notice">No repayment percentage, attendance score, or chama performance score is shown because those measures require verified targets and complete supporting records. Loan rates and fees remain controlled by loan-product settings.</div>`;
+  const {data:auth,error:authError}=await db.auth.getUser();
+  if(authError||!auth?.user)throw new Error('Please sign in again.');
+  const roles=await safe(db.from('user_roles').select('organization_id').eq('user_id',auth.user.id).eq('is_active',true));
+  const orgs=[...new Set((roles.data||[]).map(x=>x.organization_id).filter(Boolean))];
+  if(orgs.length!==1)throw new Error('Your staff account must have one active organisation assignment.');
+  const org=orgs[0];
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Nairobi',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),p={};
+  parts.forEach(x=>p[x.type]=x.value);
+  const today=`${p.year}-${p.month}-${p.day}`,start=`${p.year}-${p.month}-01`,yearStart=`${p.year}-01-01`;
+  const now=new Date(`${today}T12:00:00Z`),prevStart=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-1,1)).toISOString().slice(0,10),prevEnd=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-1,now.getUTCDate())).toISOString().slice(0,10);
+  const n=x=>Number(x||0),money=x=>cash(Math.max(0,n(x))),mkey=x=>String(x||'').slice(0,7);
+  const [mr,gr,lr,rr,sr,ar,tr,br,pr,staffr]=await Promise.all([
+    safe(db.from('members').select('id,registration_date,status').eq('organization_id',org)),
+    safe(db.from('chama_groups').select('id,group_name,status,branch_id').eq('organization_id',org)),
+    safe(db.from('loan_accounts').select('id,application_id,loan_product_id,group_id,branch_id,principal_amount,status,disbursed_on').eq('organization_id',org)),
+    safe(db.from('loan_repayments').select('loan_account_id,payment_date,amount,received_by,status,reversed_at').eq('organization_id',org).gte('payment_date',prevStart).lte('payment_date',today).limit(10000)),
+    safe(db.from('loan_schedule_balances').select('loan_account_id,due_date,amount_outstanding').eq('organization_id',org).limit(10000)),
+    safe(db.from('loan_applications').select('id,status').eq('organization_id',org).limit(5000)),
+    safe(db.from('monthly_collection_targets').select('target_amount').eq('organization_id',org).eq('target_month',start).maybeSingle()),
+    safe(db.from('branches').select('id,branch_name').eq('organization_id',org)),
+    safe(db.from('loan_products').select('id,product_name').eq('organization_id',org)),
+    safe(db.from('profiles').select('id,full_name').eq('active',true))
+  ]);
+  const members=mr.data||[],groups=gr.data||[],loans=lr.data||[],payments=rr.data||[],schedules=sr.data||[],apps=ar.data||[],branches=br.data||[],products=pr.data||[],staff=staffr.data||[];
+  const lm=Object.fromEntries(loans.map(x=>[x.id,x])),bm=Object.fromEntries(branches.map(x=>[x.id,x.branch_name])),gm=Object.fromEntries(groups.map(x=>[x.id,x.group_name])),sm=Object.fromEntries(staff.map(x=>[x.id,x.full_name||'Staff']));
+  const posted=payments.filter(x=>String(x.status||'').toUpperCase()==='POSTED'&&!x.reversed_at);
+  const issued=loans.filter(x=>x.disbursed_on&&x.disbursed_on<=today&&!['pending','approved','rejected','cancelled'].includes(String(x.status||'').toLowerCase()));
+  const ids=new Set(issued.map(x=>x.id)),active=issued.filter(x=>!['completed','closed','defaulted','written_off'].includes(String(x.status||'').toLowerCase()));
+  const sched=schedules.filter(x=>ids.has(x.loan_account_id)),outstanding=sched.reduce((s,x)=>s+n(x.amount_outstanding),0),overdue=sched.filter(x=>x.due_date<today&&n(x.amount_outstanding)>0),arrears=overdue.reduce((s,x)=>s+n(x.amount_outstanding),0);
+  const mtd=posted.filter(x=>x.payment_date>=start),todayRows=mtd.filter(x=>x.payment_date===today),prev=posted.filter(x=>x.payment_date>=prevStart&&x.payment_date<=prevEnd);
+  const collected=mtd.reduce((s,x)=>s+n(x.amount),0),todayCollected=todayRows.reduce((s,x)=>s+n(x.amount),0),prevTotal=prev.reduce((s,x)=>s+n(x.amount),0);
+  const target=tr.data? n(tr.data.target_amount):null,remaining=target===null?null:Math.max(0,target-collected),pct=target>0?collected/target*100:null;
+  const disbMtd=issued.filter(x=>x.disbursed_on>=start).reduce((s,x)=>s+n(x.principal_amount),0),disbYtd=issued.filter(x=>x.disbursed_on>=yearStart).reduce((s,x)=>s+n(x.principal_amount),0);
+  const approved=apps.filter(x=>String(x.status||'').toLowerCase()==='approved'&&!issued.some(l=>l.application_id===x.id)),pending=apps.filter(x=>['pending','submitted','under_review'].includes(String(x.status||'').toLowerCase()));
+  const unposted=payments.filter(x=>String(x.status||'').toUpperCase()!=='POSTED'&&!x.reversed_at),activeMembers=members.filter(x=>String(x.status||'').toLowerCase()==='active').length,newMembers=members.filter(x=>x.registration_date>=start&&x.registration_date<=today).length;
+  const bars=items=>items.length?'<div>'+items.map(x=>{const max=Math.max(1,...items.map(y=>n(y.amount)));return `<div class="metric-line"><span>${esc(x.label)}<div class="chart-track"><div class="chart-fill" style="width:${n(x.amount)/max*100}%"></div></div></span><b>${money(x.amount)}</b></div>`}).join('')+'</div>':'<p class="sub">No data yet.</p>';
+  const daily=items=>'<div class="daily-bars">'+items.map(x=>{const max=Math.max(1,...items.map(y=>n(y.amount)));return `<div class="daily-bar-wrap" title="${esc(x.label)}: ${money(x.amount)}"><div class="daily-bar" style="height:${Math.max(2,n(x.amount)/max*100)}%"></div><small>${esc(x.label)}</small></div>`}).join('')+'</div>';
+  const days=[];for(let d=1;d<=Number(p.day);d++){const date=`${p.year}-${p.month}-${String(d).padStart(2,'0')}`;days.push({label:String(d),amount:mtd.filter(x=>x.payment_date===date).reduce((s,x)=>s+n(x.amount),0)});}
+  const disbDays=[];for(let d=1;d<=Number(p.day);d++){const date=`${p.year}-${p.month}-${String(d).padStart(2,'0')}`;disbDays.push({label:String(d),amount:issued.filter(x=>x.disbursed_on===date).reduce((s,x)=>s+n(x.principal_amount),0)});}
+  const officer={};mtd.forEach(x=>{const k=x.received_by||'unassigned';officer[k]=(officer[k]||0)+n(x.amount);});
+  const officerRows=Object.entries(officer).map(([id,amount])=>({label:sm[id]||'Unassigned officer',amount})).sort((a,b)=>b.amount-a.amount).slice(0,8);
+  const branchRows=branches.map(x=>({label:x.branch_name,amount:mtd.filter(r=>lm[r.loan_account_id]?.branch_id===x.id).reduce((s,r)=>s+n(r.amount),0)})).sort((a,b)=>b.amount-a.amount);
+  const groupRows=groups.map(x=>({label:x.group_name,amount:mtd.filter(r=>lm[r.loan_account_id]?.group_id===x.id).reduce((s,r)=>s+n(r.amount),0)})).sort((a,b)=>b.amount-a.amount).slice(0,10);
+  const productRows=products.map(x=>({label:x.product_name,amount:issued.filter(l=>l.loan_product_id===x.id).reduce((s,l)=>s+n(l.principal_amount),0)})).filter(x=>x.amount>0).sort((a,b)=>b.amount-a.amount).slice(0,8);
+  const growth=[];for(let i=5;i>=0;i--){const dt=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-i,1)),key=dt.toISOString().slice(0,7);growth.push({label:key,amount:members.filter(x=>mkey(x.registration_date)===key).length});}
+  const aging=[['1–7 days',1,7],['8–30 days',8,30],['31+ days',31,99999]].map(([label,a,b])=>{const rows=overdue.filter(x=>{const late=Math.floor((Date.parse(today+'T00:00:00Z')-Date.parse(x.due_date+'T00:00:00Z'))/86400000;return late>=a&&late<=b});return {label,count:rows.length,amount:rows.reduce((s,x)=>s+n(x.amount_outstanding),0)}});
+  const change=prevTotal>0?(collected-prevTotal)/prevTotal*100:null;
+  c.innerHTML=`<div class="page-heading"><div><h2>GORA Company Dashboard</h2><div class="sub">Live overview · ${today} · Kenya time</div></div><span class="pill">LIVE DATA</span></div>
+  <div class="stats">${stat('Clients / Members',members.length,`${activeMembers} active · ${newMembers} new this month`,'blue')}${stat('Running Chamas',groups.filter(x=>String(x.status||'').toLowerCase()==='active').length,'Active groups','good')}${stat('Running Loans',active.length,`${money(outstanding)} outstanding`,'blue')}${stat('Loan Arrears',money(arrears),`${overdue.length} overdue installments`,'red')}${stat('Pending Disbursement',approved.length,'Approved, not disbursed','warn')}${stat('Unposted Payments',unposted.length,'Awaiting posting','warn')}</div>
+  <div class="grid-two"><div class="panel"><h3>Credit performance</h3><div class="metric-line"><span>Disbursement MTD</span><b>${money(disbMtd)}</b></div><div class="metric-line"><span>Disbursement YTD</span><b>${money(disbYtd)}</b></div><div class="metric-line"><span>Today’s collections</span><b>${money(todayCollected)}</b></div><div class="metric-line"><span>MTD collections</span><b>${money(collected)}</b></div><div class="metric-line"><span>Today’s collection score</span><b>${target>0?(todayCollected/(target/ new Date(now.getUTCFullYear(),now.getUTCMonth()+1,0).getDate())*100).toFixed(1)+'%':'Target not set'}</b></div></div>
+  <div class="panel"><h3>MTD collection target</h3><div class="metric-line"><span>Monthly target</span><b>${target===null?'Target not set':money(target)}</b></div><div class="metric-line"><span>Target remaining</span><b>${remaining===null?'—':money(remaining)}</b></div><div class="metric-line"><span>Collection percentage</span><b>${pct===null?'—':pct.toFixed(1)+'%'}</b></div><div class="metric-line"><span>Vs previous month same period</span><b>${change===null?'No comparison':(change>=0?'+':'')+change.toFixed(1)+'%'}</b></div></div></div>
+  <div class="panel"><h3>Member growth · last 6 months</h3>${bars(growth)}</div><div class="panel"><h3>Daily collection trend · MTD</h3>${daily(days)}</div><div class="panel"><h3>Disbursement trend · current month</h3>${daily(disbDays)}</div>
+  <div class="grid-two"><div class="panel"><h3>Collections by loan officer</h3>${bars(officerRows)}</div><div class="panel"><h3>Collections by branch</h3>${bars(branchRows)}</div></div><div class="panel"><h3>Collections by group / chama</h3>${bars(groupRows)}</div>
+  <div class="grid-two"><div class="panel"><h3>Loan product distribution</h3>${bars(productRows)}</div><div class="panel"><h3>Arrears aging</h3>${aging.map(x=>`<div class="metric-line"><span>${x.label} (${x.count})</span><b>${money(x.amount)}</b></div>`).join('')}<div class="metric-line"><span>Total arrears</span><b>${money(arrears)}</b></div></div></div>
+  <div class="panel"><h3>Quick attention areas</h3><div class="metric-line"><span>Post incoming payments / chama collections</span><b>${unposted.length}</b></div><div class="metric-line"><span>Release approved loans</span><b>${approved.length}</b></div><div class="metric-line"><span>Review portal applications</span><b>${pending.length}</b></div></div>
+  <div class="panel"><h3>Financial performance</h3><p class="sub">Income, expenses, profit and cash/bank balances require verified accounting ledger entries. Principal disbursement is not an expense; principal repayment is not income.</p><b>Ledger figures not yet verified.</b></div><div class="notice">Only posted, non-reversed repayments count as collections. Verify cashbook and loan schedules before relying on the dashboard.</div>`;
 }
 
 const pages={
