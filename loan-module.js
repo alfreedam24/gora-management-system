@@ -54,7 +54,7 @@
       let products=[],apps=[],accounts=[],members=[],groups=[],individuals=[],activeView=moduleName;
       root.innerHTML='<div class="loading-panel">Loading loan module…</div>';
       try {
-        [products,apps,accounts,members,groups]=await Promise.all([
+        [products,apps,accounts,members,groups,individuals]=await Promise.all([
           read("gora2_loan_products","*","product_name"),
           read("gora2_loan_applications","*","applied_at"),
           read("gora2_loan_accounts","*","created_at"),
