@@ -108,9 +108,19 @@ $('navigation').addEventListener('click', async (e) => {
     return;
   }
 
+    if (window.GORALoanModule?.handles(moduleName)) {
+    await window.GORALoanModule.render(moduleName, {
+      db,
+      organization,
+      authUser,
+      profile,
+      toast
+    });
+    return;
+  }
+
   renderFutureModule(moduleName);
 });
-
 
 
 function renderFutureModule(moduleName){$('pageContent').innerHTML=`<section class="future-module"><div class="future-icon">✦</div><h2>${esc(moduleName)}</h2><p>This module is scheduled in the GORA 2.0 build order. We are finishing and testing Members first, then we will connect this module to the same database and navigation.</p><div class="note-box">The dashboard is intentionally reserved for the final stage, after all modules and financial data are connected.</div><button class="btn btn-primary" type="button" onclick="document.querySelector('[data-module=Members]').click()">Return to Members</button></section>`;}
