@@ -114,6 +114,7 @@ $('navigation').addEventListener('click', async (e) => {
       organization,
       authUser,
       profile,
+     branches,
       toast
     });
     return;
