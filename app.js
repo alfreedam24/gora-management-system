@@ -119,7 +119,16 @@ $('navigation').addEventListener('click', async (e) => {
     });
     return;
   }
-
+  if (window.GORADashboardModule?.handles(moduleName)) {
+    await window.GORADashboardModule.render(moduleName, {
+      db,
+      organization,
+      authUser,
+      profile,
+      toast
+    });
+    return;
+  }
   renderFutureModule(moduleName);
 });
 
@@ -268,16 +277,6 @@ async function navigateFutureWithMember(moduleName, memberId) {
     return;
   }
 
-if (window.GORADashboardModule?.handles(moduleName)) {
-  await window.GORADashboardModule.render(moduleName, {
-    db,
-    organization,
-    authUser,
-    profile,
-    toast
-  });
-  return;
-}
  
   renderFutureModule(moduleName);
 
