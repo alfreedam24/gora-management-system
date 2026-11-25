@@ -249,7 +249,28 @@
           <form id="lm-app-form"><div class="form-grid">
             <label class="form-field">Loan product<select id="lm-product" required><option value="">Select product</option>${products.filter(p=>p.status==="ACTIVE").map(p=>`<option value="${p.id}">${esc(p.product_name)} · ${esc(p.product_code)}</option>`).join("")}</select></label>
             ${select("Borrower type","btype",["MEMBER","INDIVIDUAL","GROUP"],"MEMBER")}
-            <label class="form-field" id="lm-member-wrap">Member<select id="lm-member">${members.filter(m=>m.status==="ACTIVE").map(m=>`<option value="${m.id}">${esc(m.member_number||"")} ${esc(memberName(m.id))}</option>`).join("")}</select></label>
+            
+<label class="form-field" id="lm-member-wrap">
+  Member
+  <select id="lm-member" required>
+    <option value="">Select member</option>
+    ${members
+      .filter(m => ["ACTIVE", "APPROVED"].includes(
+        String(m.status || "").toUpperCase()
+      ))
+      .map(m => `
+        <option
+          value="${m.id}"
+          ${ctx.selectedBorrowerId === m.id ? "selected" : ""}
+        >
+          ${esc(m.member_number || "")}
+          ${esc(memberName(m.id))}
+        </option>
+      `)
+      .join("")}
+  </select>
+</label>
+
             <label class="form-field hidden" id="lm-individual-wrap">Individual borrower<select id="lm-individual"><option value="">Select borrower</option>${individuals.filter(b=>b.status==="ACTIVE").map(b=>`<option value="${b.id}">${esc(b.borrower_number||"")} ${esc(b.full_name||b.business_name||"")}</option>`).join("")}</select></label>
             <label class="form-field hidden" id="lm-group-wrap">Chama / group<select id="lm-group"><option value="">Select group</option>${groups.filter(g=>g.status==="ACTIVE").map(g=>`<option value="${g.id}">${esc(g.group_name)}</option>`).join("")}</select></label>
             ${field("Requested amount (KES)","amount","","number",'min="1" required')}
