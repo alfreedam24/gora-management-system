@@ -537,11 +537,121 @@
       function commentForm(applicationId,loanAccountId){const ed=document.getElementById("lm-editor");ed.insertAdjacentHTML("beforeend",`<div class="panel"><h4>Add comment</h4><textarea id="lm-comment-text" rows="3" placeholder="Write a note…" required></textarea>${btn("Save comment","btn btn-primary","id='lm-comment-save'")}</div>`);document.getElementById("lm-comment-save").onclick=async()=>{try{if(val("comment-text").trim().length<2)throw new Error("Enter a comment before saving.");const {error}=await db.from("gora2_loan_comments").insert({organization_id:org,application_id:applicationId,loan_account_id:loanAccountId,comment_text:val("comment-text").trim(),created_by:user});if(error)throw error;ctx.toast("Comment saved.");}catch(e){alert(e.message);}};}
       function documentForm(applicationId,loanAccountId){const ed=document.getElementById("lm-editor");ed.insertAdjacentHTML("beforeend",`<div class="panel"><h4>Add document record</h4><p class="small-note">This records a file already uploaded to the private GORA loan-documents bucket. It does not upload the file from this screen.</p><form id="lm-doc-form" class="form-grid">${field("Document type","dtype","","text","required")}${field("Filename","dname","","text","required")}${field("Storage path","dpath","","text","required")}${field("MIME type","dmime")}</form>${btn("Save document record","btn btn-primary","id='lm-doc-save'")}</div>`);document.getElementById("lm-doc-save").onclick=async()=>{try{const {error}=await db.from("gora2_loan_documents").insert({organization_id:org,application_id:applicationId,loan_account_id:loanAccountId,document_type:val("dtype"),original_filename:val("dname"),storage_path:val("dpath"),mime_type:val("dmime")||null,uploaded_by:user});if(error)throw error;ctx.toast("Document record saved.");}catch(e){alert(e.message);}};}
 
-      function openDisburse(a){
-        if(!a)return;const ed=document.getElementById("lm-editor");
-        ed.innerHTML=`<div class="panel"><h3>Disburse ${esc(a.application_number)}</h3><form id="lm-disb-form" class="form-grid">${field("Release date","release",dateToday(),"date","required")}${field("First repayment date (blank = grace-period default)","due",a.approved_first_repayment_date||a.first_repayment_date||"","date")}${select("Disbursement method","method",["CASH","MPESA","BANK"],"MPESA")}${field("Payment reference","reference")}</form><p class="message" id="lm-disb-msg"></p>${btn("Confirm disbursement","btn btn-primary","id='lm-disb-confirm'")}</div>`;
-        document.getElementById("lm-disb-confirm").onclick=async()=>{try{if(!document.getElementById("lm-disb-form").reportValidity())return;const {data,error}=await db.rpc("gora2_loan_disburse",{_application_id:a.id,_disbursed_on:val("release"),_first_due_date:val("due"),_payment_method:val("method"),_payment_reference:val("reference")||null});if(error)throw error;ctx.toast("Loan disbursed and schedule created.");ed.innerHTML="";await refresh();}catch(e){document.getElementById("lm-disb-msg").textContent=e.message;}};
+     
+function openDisburse(a) {
+  if (!a) return;
+
+  const ed = document.getElementById("lm-editor");
+
+  const addDays = (date, days) => {
+    const d = new Date(`${date}T12:00:00`);
+    d.setDate(d.getDate() + days);
+
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const today = dateToday();
+
+  const firstDue =
+    a.approved_first_repayment_date ||
+    a.first_repayment_date ||
+    addDays(today, 7);
+
+  ed.innerHTML = `
+    <div class="panel">
+      <h3>Disburse ${esc(a.application_number)}</h3>
+
+      <p>
+        Borrower:
+        <b>${esc(borrowerName(a))}</b>
+      </p>
+
+      <form id="lm-disb-form" class="form-grid">
+        ${field("Release date", "release", today, "date", "required")}
+
+        ${field(
+          "First repayment date",
+          "due",
+          firstDue,
+          "date",
+          "required"
+        )}
+
+        ${select(
+          "Disbursement method",
+          "method",
+          ["CASH", "MPESA", "BANK"],
+          "MPESA"
+        )}
+
+        ${field("Payment reference", "reference")}
+      </form>
+
+      <p class="small-note">
+        Weekly repayment installments will be created automatically
+        from the first repayment date.
+      </p>
+
+      <p class="message" id="lm-disb-msg"></p>
+
+      ${btn(
+        "Confirm disbursement",
+        "btn btn-primary",
+        "id='lm-disb-confirm'"
+      )}
+    </div>
+  `;
+
+  const release = document.getElementById("lm-release");
+  const due = document.getElementById("lm-due");
+
+  let dueChangedManually = false;
+
+  due.addEventListener("change", () => {
+    dueChangedManually = true;
+  });
+
+  release.addEventListener("change", () => {
+    if (!dueChangedManually) {
+      due.value = addDays(release.value, 7);
+    }
+  });
+
+  document.getElementById("lm-disb-confirm").onclick =
+    async () => {
+      try {
+        if (!document.getElementById("lm-disb-form").reportValidity()) {
+          return;
+        }
+
+        const { error } = await db.rpc(
+          "gora2_loan_disburse",
+          {
+            _application_id: a.id,
+            _disbursed_on: val("release"),
+            _first_due_date: val("due") || null,
+            _payment_method: val("method"),
+            _payment_reference: val("reference") || null
+          }
+        );
+
+        if (error) throw error;
+
+        ctx.toast(
+          "Loan disbursed; repayment schedule created."
+        );
+
+        ed.innerHTML = "";
+
+        await refresh();
+
+      } catch (e) {
+        document.getElementById("lm-disb-msg").textContent =
+          e.message;
       }
+    };
+}
+
 
       function openRepayment(account=null){
         const eligible=accounts.filter(a=>a.status==="OPEN");
