@@ -42,6 +42,105 @@
   const isLoanStaff = ctx => ["SUPER_ADMIN","MANAGER","LOAN_OFFICER"].includes(ctx.profile?.roleCode);
   const pill = s => `<span class="pill ${String(s||"").toLowerCase()}">${esc(String(s||"—").replaceAll("_"," "))}</span>`;
 
+  function weeksForUnit(unit) {
+    if (unit === "DAYS") return 1 / 7;
+    if (unit === "WEEKS") return 1;
+    if (unit === "MONTHS") return 4.34524;
+    return 1;
+  }
+
+  function weeksForInterestPeriod(period) {
+    if (period === "WEEKLY") return 1;
+    if (period === "FOUR_WEEKS") return 4;
+    if (period === "MONTHLY") return 4.34524;
+    if (period === "ANNUAL") return 52.14286;
+    return 4;
+  }
+
+  function weeksForFrequency(frequency) {
+    if (frequency === "WEEKLY") return 1;
+    if (frequency === "BIWEEKLY") return 2;
+    if (frequency === "MONTHLY") return 4.34524;
+    return 1;
+  }
+
+  function attachInstallmentPreview(formId, previewId, getTerms) {
+    const form = document.getElementById(formId);
+    const preview = document.getElementById(previewId);
+    if (!form || !preview) return;
+
+    const update = () => {
+      const terms = getTerms();
+      const amount = Number(terms.amount || 0);
+      const rate = Number(terms.rate || 0);
+      const duration = Number(terms.duration || 0);
+
+      if (!terms.product || amount <= 0 || duration <= 0) {
+        preview.textContent =
+          "Choose a loan product and enter the amount and duration to see the installment estimate.";
+        return;
+      }
+
+      const termWeeks = duration * weeksForUnit(terms.unit);
+      const cycleWeeks = weeksForFrequency(terms.frequency);
+      const interestWeeks = weeksForInterestPeriod(terms.period);
+      const payments = Math.max(1, Math.ceil(termWeeks / cycleWeeks));
+
+      let interest = 0;
+      let installment = 0;
+
+      if (terms.method === "REDUCING_BALANCE") {
+        const periodicRate =
+          (rate / 100) * (cycleWeeks / interestWeeks);
+
+        if (periodicRate > 0) {
+          installment =
+            amount * periodicRate /
+            (1 - Math.pow(1 + periodicRate, -payments));
+        } else {
+          installment = amount / payments;
+        }
+
+        interest = Math.max(0, installment * payments - amount);
+      } else {
+        interest =
+          amount * (rate / 100) * (termWeeks / interestWeeks);
+
+        installment = (amount + interest) / payments;
+      }
+
+      let fee = 0;
+      if (terms.feeType === "FIXED") {
+        fee = Number(terms.feeValue || 0);
+      } else if (terms.feeType === "PERCENTAGE") {
+        fee = amount * Number(terms.feeValue || 0) / 100;
+      }
+
+      const total = amount + interest + fee;
+      installment += fee / payments;
+
+      preview.innerHTML = `
+        <b>Automatic repayment estimate</b>
+        <div class="detail-grid">
+          <div><span>Interest rate</span><b>${rate.toFixed(2)}%</b></div>
+          <div><span>Total interest</span><b>${money(interest)}</b></div>
+          <div><span>Processing fee</span><b>${money(fee)}</b></div>
+          <div><span>Total repayment</span><b>${money(total)}</b></div>
+          <div><span>Number of installments</span><b>${payments}</b></div>
+          <div><span>Estimated installment</span><b>${money(installment)}</b></div>
+        </div>
+        <small class="small-note">
+          Estimate only. The approved loan schedule and final rounding
+          are generated during disbursement.
+        </small>
+      `;
+    };
+
+    form.addEventListener("input", update);
+    form.addEventListener("change", update);
+    update();
+      }
+  
   window.GORALoanModule = {
     handles: name => MODULES.has(name),
     async render(moduleName,ctx) {
@@ -255,9 +354,7 @@
   <select id="lm-member" required>
     <option value="">Select member</option>
     ${members
-      .filter(m => ["ACTIVE", "APPROVED"].includes(
-        String(m.status || "").toUpperCase()
-      ))
+      ..filter(m => String(m.status || "").toUpperCase() === "ACTIVE")
       .map(m => `
         <option
           value="${m.id}"
@@ -274,6 +371,7 @@
             <label class="form-field hidden" id="lm-individual-wrap">Individual borrower<select id="lm-individual"><option value="">Select borrower</option>${individuals.filter(b=>b.status==="ACTIVE").map(b=>`<option value="${b.id}">${esc(b.borrower_number||"")} ${esc(b.full_name||b.business_name||"")}</option>`).join("")}</select></label>
             <label class="form-field hidden" id="lm-group-wrap">Chama / group<select id="lm-group"><option value="">Select group</option>${groups.filter(g=>g.status==="ACTIVE").map(g=>`<option value="${g.id}">${esc(g.group_name)}</option>`).join("")}</select></label>
             ${field("Requested amount (KES)","amount","","number",'min="1" required')}
+            ${field("Product interest rate (%)","appRate","","number",'min="0" step="0.01" readonly')}
             ${field("Duration","duration","4","number",'min="1" required')}
             ${select("Duration unit","dunit",["DAYS","WEEKS","MONTHS"],"WEEKS")}
             ${select("Repayment cycle","cycle",["WEEKLY","BIWEEKLY","MONTHLY"],"WEEKLY")}
@@ -287,8 +385,62 @@
             ${field("Credit score (0–1000)","score","","number",'min="0" max="1000"')}
             ${select("Field check","fieldCheck",["NOT_DONE","PASS","FAIL","NOT_REQUIRED"],"NOT_DONE")}
             ${field("Assessment / KYC notes","notes","","text")}
-          </div><p class="message" id="lm-app-msg"></p><button class="btn btn-primary" type="submit">Submit application for processing</button></form></div>`;
+          </div>
+<div class="note-box" id="lm-app-preview">
+  Choose a product and enter the amount to calculate installments.
+</div>
+<p class="message" id="lm-app-msg"></p><button class="btn btn-primary" type="submit">Submit application for processing</button></form></div>`;
         document.getElementById("lm-close").onclick=()=>ed.innerHTML="";
+        
+        const productSelect = document.getElementById("lm-product");
+
+        productSelect.addEventListener("change", () => {
+          const p = products.find(x => x.id === val("product"));
+          if (!p) return;
+
+          val("appRate");
+          document.getElementById("lm-appRate").value =
+            Number(p.interest_rate || 0);
+
+          document.getElementById("lm-duration").value =
+            Number(p.duration_min || 1);
+
+          document.getElementById("lm-duration").min =
+            Number(p.duration_min || 1);
+
+          document.getElementById("lm-duration").max =
+            Number(p.duration_max || p.duration_min || 1);
+
+          document.getElementById("lm-dunit").value =
+            p.duration_unit || "WEEKS";
+
+          document.getElementById("lm-cycle").value =
+            p.repayment_frequency || "WEEKLY";
+
+          document.getElementById("lm-dunit").disabled = true;
+          document.getElementById("lm-cycle").disabled = true;
+        });
+
+        attachInstallmentPreview(
+          "lm-app-form",
+          "lm-app-preview",
+          () => {
+            const p = products.find(x => x.id === val("product"));
+            return {
+              product: p,
+              amount: val("amount"),
+              rate: val("appRate") || p?.interest_rate,
+              duration: val("duration"),
+              unit: val("dunit"),
+              frequency: val("cycle"),
+              method: p?.interest_method || "FLAT",
+              period: p?.interest_period || "FOUR_WEEKS",
+              feeType: p?.processing_fee_type || "NONE",
+              feeValue: p?.processing_fee_value || 0
+            };
+          }
+        );
+        
         document.getElementById("lm-btype")?.addEventListener("change",e=>{
           document.getElementById("lm-member-wrap").classList.toggle("hidden",e.target.value!=="MEMBER");
           document.getElementById("lm-individual-wrap").classList.toggle("hidden",e.target.value!=="INDIVIDUAL");
@@ -298,7 +450,19 @@
           e.preventDefault();
           const p=products.find(x=>x.id===val("product"));
           const amount=Number(val("amount")),duration=Number(val("duration"));
-          if(!p||amount<p.minimum_amount||(p.maximum_amount!==null&&amount>p.maximum_amount)||duration<p.duration_min||duration>p.duration_max){document.getElementById("lm-app-msg").textContent="Amount or duration is outside the selected product limits.";return;}
+          if (
+  !p ||
+  amount < p.minimum_amount ||
+  (p.maximum_amount !== null && amount > p.maximum_amount) ||
+  duration < p.duration_min ||
+  duration > p.duration_max ||
+  val("dunit") !== p.duration_unit ||
+  val("cycle") !== p.repayment_frequency
+) {
+  document.getElementById("lm-app-msg").textContent =
+    "Amount, duration or repayment cycle is outside the selected product terms.";
+  return;
+          }
           const btype=val("btype"),memberId=btype==="MEMBER"?val("member"):null,groupId=btype==="GROUP"?val("group"):null;
           const payload={organization_id:org,product_id:p.id,borrower_type:btype,member_id:memberId,individual_borrower_id:btype==="INDIVIDUAL"?val("individual"):null,group_id:groupId,branch_id:val("branch")||null,requested_amount:amount,requested_duration:duration,requested_duration_unit:val("dunit"),requested_repayment_frequency:val("cycle"),purpose:val("purpose").trim(),first_repayment_date:val("firstDate")||null,first_repayment_amount:val("firstAmount")?Number(val("firstAmount")):null,assessment_monthly_income:val("income")?Number(val("income")):null,assessment_monthly_expenses:val("expenses")?Number(val("expenses")):null,assessment_existing_debt:val("debt")?Number(val("debt")):null,assessment_credit_score:val("score")?Number(val("score")):null,assessment_field_check:val("fieldCheck"),assessment_notes:val("notes")||null,custom_fields:{},kyc_snapshot:{}};
           try{const {data,error}=await db.rpc("gora2_loan_submit_application",{_payload:payload});if(error)throw error;ctx.toast("Application submitted for processing.");ed.innerHTML="";await refresh();}catch(err){document.getElementById("lm-app-msg").textContent=err.message;}
