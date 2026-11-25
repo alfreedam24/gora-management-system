@@ -181,6 +181,25 @@
       const productName=id=>products.find(x=>x.id===id)?.product_name||"—";
       const accountNumber=id=>accounts.find(x=>x.id===id)?.account_number||"—";
       const groupName=id=>groups.find(g=>g.id===id)?.group_name||"Group";
+      
+const groupMemberNames = groupId => {
+  return memberships
+    .filter(x =>
+      x.group_id === groupId &&
+      String(x.status || "").toUpperCase() === "ACTIVE"
+    )
+    .map(x => members.find(m =>
+      m.id === x.member_id &&
+      String(m.status || "").toUpperCase() === "ACTIVE"
+    ))
+    .filter(Boolean)
+    .map(m =>
+      m.full_name ||
+      `${m.first_name || ""} ${m.last_name || ""}`.trim()
+    )
+    .filter(Boolean);
+};
+      
       const borrowerName=row=>row?.borrower_type==="GROUP"?groupName(row.group_id):memberName(row?.member_id||row?.individual_borrower_id);
       const refresh=async()=>{[products,apps,accounts]=await Promise.all([
         read("gora2_loan_products","*","product_name"),
