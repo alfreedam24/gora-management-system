@@ -268,6 +268,17 @@ async function navigateFutureWithMember(moduleName, memberId) {
     return;
   }
 
+if (window.GORADashboardModule?.handles(moduleName)) {
+  await window.GORADashboardModule.render(moduleName, {
+    db,
+    organization,
+    authUser,
+    profile,
+    toast
+  });
+  return;
+}
+ 
   renderFutureModule(moduleName);
 
   const box = document.querySelector('.future-module');
