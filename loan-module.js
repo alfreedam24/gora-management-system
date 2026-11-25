@@ -388,7 +388,25 @@ const groupMemberNames = groupId => {
 </label>
 
             <label class="form-field hidden" id="lm-individual-wrap">Individual borrower<select id="lm-individual"><option value="">Select borrower</option>${individuals.filter(b=>b.status==="ACTIVE").map(b=>`<option value="${b.id}">${esc(b.borrower_number||"")} ${esc(b.full_name||b.business_name||"")}</option>`).join("")}</select></label>
-            <label class="form-field hidden" id="lm-group-wrap">Chama / group<select id="lm-group"><option value="">Select group</option>${groups.filter(g=>g.status==="ACTIVE").map(g=>`<option value="${g.id}">${esc(g.group_name)}</option>`).join("")}</select></label>
+            
+const groupMemberNames = groupId => {
+  return memberships
+    .filter(x =>
+      x.group_id === groupId &&
+      String(x.status || "").toUpperCase() === "ACTIVE"
+    )
+    .map(x => members.find(m =>
+      m.id === x.member_id &&
+      String(m.status || "").toUpperCase() === "ACTIVE"
+    ))
+    .filter(Boolean)
+    .map(m =>
+      m.full_name ||
+      `${m.first_name || ""} ${m.last_name || ""}`.trim()
+    )
+    .filter(Boolean);
+};
+
             ${field("Requested amount (KES)","amount","","number",'min="1" required')}
             ${field("Product interest rate (%)","appRate","","number",'min="0" step="0.01" readonly')}
             ${field("Duration","duration","4","number",'min="1" required')}
