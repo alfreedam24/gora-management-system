@@ -354,7 +354,7 @@
   <select id="lm-member" required>
     <option value="">Select member</option>
     ${members
-      ..filter(m => String(m.status || "").toUpperCase() === "ACTIVE")
+      .filter(m => String(m.status || "").toUpperCase() === "ACTIVE")
       .map(m => `
         <option
           value="${m.id}"
