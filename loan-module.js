@@ -10,7 +10,7 @@
     "Disbursement","Repayments","Schedules & Arrears"
   ]);
   const PRESETS = [
-    {name:"Emergency",code:"EMERGENCY",category:"EMERGENCY",min:2000,max:5000,
+    {name:"Emergency",code:"EMERGENCY",category:"EMERGENCY",min:2000,max:15000,
      rate:20,period:"FOUR_WEEKS",termMin:4,termMax:4,unit:"WEEKS",frequency:"WEEKLY",grace:0},
     {name:"Chemsha",code:"CHEMSHA",category:"BUSINESS",min:8000,max:9999,
      rate:0,period:"FOUR_WEEKS",termMin:3,termMax:6,unit:"MONTHS",frequency:"MONTHLY",grace:0},
