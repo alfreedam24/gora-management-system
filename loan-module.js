@@ -245,8 +245,13 @@ const groupMemberNames = groupId => {
        else if(view==="Repayments") await drawRepayments();
         else await drawSchedules();
 
-        document.getElementById("lm-search").oninput=()=>drawTableCurrent();
-        document.getElementById("lm-status").onchange=()=>drawTableCurrent();
+        
+const redraw=()=>drawTableCurrent().catch(e=>{
+  table.innerHTML=`<div class="panel error"><b>Could not refresh this loan view.</b><p>${esc(e.message)}</p></div>`;
+});
+document.getElementById("lm-search").oninput=redraw;
+document.getElementById("lm-status").onchange=redraw;
+
         if(document.getElementById("lm-new")) document.getElementById("lm-new").onclick=()=>openNew();
 
         
