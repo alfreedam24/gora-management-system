@@ -718,8 +718,57 @@ function openDisburse(a) {
           ${field("Idempotency key (optional)","paykey")}
           ${field("Notes","paynotes")}
         </form><p class="message" id="lm-repay-msg"></p>${btn("Post repayment","btn btn-primary","id='lm-repay-post'")}</div>`;
-        document.getElementById("lm-repay-post").onclick=async()=>{try{if(!document.getElementById("lm-repay-form").reportValidity())return;const {data,error}=await db.rpc("gora2_loan_record_repayment",{_loan_account_id:val("account"),_payment_date:val("paydate"),_amount:Number(val("payamount")),_payment_method:val("paymethod"),_reference_number:val("payref")||null,_idempotency_key:val("paykey")||null,_notes:val("paynotes")||null});if(error)throw error;ctx.toast("Repayment posted and allocated.");ed.innerHTML="";await refresh();}catch(e){document.getElementById("lm-repay-msg").textContent=e.message;}};
+        
+const postButton=document.getElementById("lm-repay-post");
+
+postButton.onclick=async()=>{
+  const form=document.getElementById("lm-repay-form");
+  if(!form.reportValidity()) return;
+
+  const message=document.getElementById("lm-repay-msg");
+  let repaymentPosted=false;
+
+  postButton.disabled=true;
+  postButton.textContent="Posting repayment…";
+
+  try{
+    const {error}=await db.rpc(
+      "gora2_loan_record_repayment",
+      {
+        _loan_account_id:val("account"),
+        _payment_date:val("paydate"),
+        _amount:Number(val("payamount")),
+        _payment_method:val("paymethod"),
+        _reference_number:val("payref")||null,
+        _idempotency_key:val("paykey")||null,
+        _notes:val("paynotes")||null
       }
+    );
+
+    if(error) throw error;
+
+    repaymentPosted=true;
+    ctx.toast("Repayment posted and allocated.");
+    await refresh();
+
+  }catch(e){
+    if(repaymentPosted){
+      root.innerHTML=`
+        <div class="panel error">
+          <b>Repayment was posted successfully.</b>
+          <p>The loan view could not refresh.</p>
+          <p>${esc(e.message)}</p>
+          <p>Please reload the page to view the updated balance.</p>
+        </div>`;
+    }else{
+      message.textContent=e.message;
+      postButton.disabled=false;
+      postButton.textContent="Post repayment";
+    }
+  }
+};
+        
+      
 
 
       async function showSchedule(account,schedules,allocations=[],postedRepaymentIds=new Set()){
