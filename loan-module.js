@@ -249,13 +249,15 @@ const groupMemberNames = groupId => {
         document.getElementById("lm-status").onchange=()=>drawTableCurrent();
         if(document.getElementById("lm-new")) document.getElementById("lm-new").onclick=()=>openNew();
 
-        function drawTableCurrent(){
-          if(view==="Loan Products") drawProducts();
-          else if(view==="Loan Applications"||view==="Assessment & Approval") drawApplications();
-          else if(view==="Disbursement") drawDisbursement();
-          else if(view==="Repayments") drawRepayments();
-          else drawSchedules();
-        }
+        
+async function drawTableCurrent(){
+  if(view==="Loan Products") drawProducts();
+  else if(view==="Loan Applications"||view==="Assessment & Approval") drawApplications();
+  else if(view==="Disbursement") drawDisbursement();
+  else if(view==="Repayments") await drawRepayments();
+  else await drawSchedules();
+}
+
         function drawProducts(){
           const rows=filtered(products,"products");
           table.innerHTML=rows.length?`<table class="data-table" style="min-width:850px"><thead><tr><th>Product</th><th>Range</th><th>Rate</th><th>Term</th><th>Grace</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.product_name)}</b><small style="display:block;color:var(--muted)">${esc(p.product_code)} · ${esc(p.category)}</small></td><td>${money(p.minimum_amount)} – ${p.maximum_amount==null?"No cap":money(p.maximum_amount)}</td><td>${Number(p.interest_rate)}% <small>${esc(p.interest_period)}</small></td><td>${p.duration_min}–${p.duration_max} ${esc(p.duration_unit)}</td><td>${p.grace_period_count} ${esc(p.grace_period_unit)}</td><td>${pill(p.status)}</td><td>${isManager(ctx)?btn("Edit","btn btn-soft lp-edit",`data-id="${p.id}"`):"—"}</td></tr>`).join("")}</tbody></table>`:'<div class="empty-state">No products yet. Add a product preset and enter the approved rate.</div>';
