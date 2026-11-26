@@ -242,8 +242,8 @@ const groupMemberNames = groupId => {
         if(view==="Loan Products") drawProducts();
         else if(view==="Loan Applications"||view==="Assessment & Approval") drawApplications();
         else if(view==="Disbursement") drawDisbursement();
-        else if(view==="Repayments") drawRepayments();
-        else drawSchedules();
+       else if(view==="Repayments") await drawRepayments();
+        else await drawSchedules();
 
         document.getElementById("lm-search").oninput=()=>drawTableCurrent();
         document.getElementById("lm-status").onchange=()=>drawTableCurrent();
