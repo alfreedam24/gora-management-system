@@ -138,6 +138,18 @@ if (window.GORACapitalModule?.handles(moduleName)) {
     });
     return;
   }
+ 
+  if (window.GORACashbookModule?.handles(moduleName)) {
+    await window.GORACashbookModule.render(moduleName, {
+      db,
+      organization,
+      authUser,
+      profile,
+      toast
+    });
+    return;
+  }
+ 
   if (window.GORADashboardModule?.handles(moduleName)) {
     await window.GORADashboardModule.render(moduleName, {
       db,
