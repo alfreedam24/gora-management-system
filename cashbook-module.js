@@ -554,12 +554,7 @@ if (stats) {
 }
 
 
-            ${statCard(
-              "Posted cash transactions",
-              postedCash.length,
-              "Transactions posted to cashbook"
-            )}
-
+            
             ${statCard(
               "Pending cash movements",
               pendingCash,
