@@ -522,14 +522,37 @@ const pendingExpenses = expenses.filter(
   ].includes(expense.status)
 ).length;
 
+if (stats) {
+  stats.innerHTML = `
+    ${statCard(
+      "Cash balance",
+      cashBalance,
+      "Posted CASH movements"
+    )}
 
-        if (stats) {
-          stats.innerHTML = `
-            ${statCard(
-              "Posted petty cash balance",
-              cashBalance,
-              "Posted cash movements only"
-            )}
+    ${statCard(
+      "Posted cash transactions",
+      postedCount,
+      "All posted cashbook transactions",
+      "count"
+    )}
+
+    ${statCard(
+      "Pending cash movements",
+      pendingCash,
+      "Awaiting review or posting",
+      "count"
+    )}
+
+    ${statCard(
+      "Expense requests",
+      summary.expense_open_count || 0,
+      "Not posted or rejected",
+      "count"
+    )}
+  `;
+}
+
 
             ${statCard(
               "Posted cash transactions",
