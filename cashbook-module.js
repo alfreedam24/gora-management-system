@@ -555,19 +555,7 @@ if (stats) {
 
 
             
-            ${statCard(
-              "Pending cash movements",
-              pendingCash,
-              "Awaiting review or posting"
-            )}
-
-            ${statCard(
-              "Open expense requests",
-              pendingExpenses,
-              "Requests not yet fully completed"
-            )}
-          `;
-        }
+            
 
         if (cashRowsElement) {
           cashRowsElement.innerHTML =
