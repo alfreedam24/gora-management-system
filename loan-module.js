@@ -377,7 +377,11 @@ async function drawTableCurrent(){
         ed.innerHTML=`<div class="panel"><div class="panel-head"><h3>New loan application</h3>${btn("Close","btn btn-neutral","id='lm-close'")}</div>
           <form id="lm-app-form"><div class="form-grid">
             <label class="form-field">Loan product<select id="lm-product" required><option value="">Select product</option>${products.filter(p=>p.status==="ACTIVE").map(p=>`<option value="${p.id}">${esc(p.product_name)} · ${esc(p.product_code)}</option>`).join("")}</select></label>
-            ${select("Borrower type","btype",["MEMBER","INDIVIDUAL","GROUP"],"MEMBER")}
+            ${select("Borrower type","btype",[
+  ...(products.some(p=>p.status==="ACTIVE"&&(p.borrower_scope==="MEMBER"||p.borrower_scope==="ANY"))&&members.some(m=>String(m.status||"").toUpperCase()==="ACTIVE")?["MEMBER"]:[]),
+  ...(products.some(p=>p.status==="ACTIVE"&&(p.borrower_scope==="INDIVIDUAL"||p.borrower_scope==="ANY"))&&individuals.some(b=>String(b.status||"").toUpperCase()==="ACTIVE")?["INDIVIDUAL"]:[]),
+  ...(products.some(p=>p.status==="ACTIVE"&&(p.borrower_scope==="GROUP"||p.borrower_scope==="ANY"))&&groups.some(g=>String(g.status||"").toUpperCase()==="ACTIVE")?["GROUP"]:[])
+],"MEMBER")}
             
 <label class="form-field" id="lm-member-wrap">
   Member
@@ -514,7 +518,15 @@ async function drawTableCurrent(){
     "Amount, duration or repayment cycle is outside the selected product terms.";
   return;
           }
-          const btype=val("btype"),memberId=btype==="MEMBER"?val("member"):null,groupId=btype==="GROUP"?val("group"):null;
+          const btype=val("btype"),
+      memberId=btype==="MEMBER"?val("member"):null,
+      groupId=btype==="GROUP"?val("group"):null;
+
+if(p.borrower_scope!=="ANY"&&p.borrower_scope!==btype){
+  document.getElementById("lm-app-msg").textContent =
+    `${p.product_name} only accepts ${p.borrower_scope} borrowers.`;
+  return;
+}
           const payload={organization_id:org,product_id:p.id,borrower_type:btype,member_id:memberId,individual_borrower_id:btype==="INDIVIDUAL"?val("individual"):null,group_id:groupId,branch_id:val("branch")||null,requested_amount:amount,requested_duration:duration,requested_duration_unit:val("dunit"),requested_repayment_frequency:val("cycle"),purpose:val("purpose").trim(),first_repayment_date:val("firstDate")||null,first_repayment_amount:val("firstAmount")?Number(val("firstAmount")):null,assessment_monthly_income:val("income")?Number(val("income")):null,assessment_monthly_expenses:val("expenses")?Number(val("expenses")):null,assessment_existing_debt:val("debt")?Number(val("debt")):null,assessment_credit_score:val("score")?Number(val("score")):null,assessment_field_check:val("fieldCheck"),assessment_notes:val("notes")||null,custom_fields:{},kyc_snapshot:{}};
           try{const {data,error}=await db.rpc("gora2_loan_submit_application",{_payload:payload});if(error)throw error;ctx.toast("Application submitted for processing.");ed.innerHTML="";await refresh();}catch(err){document.getElementById("lm-app-msg").textContent=err.message;}
         };
