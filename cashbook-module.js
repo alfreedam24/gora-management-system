@@ -271,7 +271,7 @@ async function getCashbookSummary(db, organizationId) {
         ${
           canSubmit
             ? `
-              <form id="cashbookForm" class="form-grid">
+              <form id="cashbookForm" class="form-grid cashbook-form">
                 <label>
                   Transaction type
                   <select id="cashType" required>
@@ -350,7 +350,7 @@ async function getCashbookSummary(db, organizationId) {
         ${
           canSubmit
             ? `
-              <form id="expenseForm" class="form-grid">
+              <form id="expenseForm" class="form-grid cashbook-form">
                 <label>
                   Expense date
                   <input id="expenseDate" type="date"
