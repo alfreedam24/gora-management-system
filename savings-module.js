@@ -30,6 +30,7 @@
   let accounts = [];
   let members = [];
   let transactions = [];
+  let accountBalances = [];
   let search = '';
 
   async function load(ctx) {
@@ -44,7 +45,14 @@
     if (ae) throw ae;
 
     accounts = a || [];
+const { data: balancesData, error: balancesError } =
+  await ctx.db.rpc('get_savings_account_balances', {
+    _organization_id: ctx.organization.id
+  });
 
+if (balancesError) throw balancesError;
+
+accountBalances = balancesData || [];
     const memberIds = [
       ...new Set(accounts.map(a => a.member_id))
     ];
@@ -84,11 +92,11 @@
     members.find(m => m.id === id) || {};
 
   const balance = accountId =>
-    transactions
-      .filter(t =>
-        t.savings_account_id === accountId &&
-        t.status === 'POSTED'
-      )
+  Number(
+    accountBalances.find(
+      b => b.savings_account_id === accountId
+    )?.posted_balance || 0
+  );
       .reduce((sum, t) => {
         if (t.transaction_type === 'DEPOSIT') {
           return sum + Number(t.amount);
