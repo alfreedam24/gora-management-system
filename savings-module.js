@@ -53,21 +53,43 @@ const { data: balancesData, error: balancesError } =
 if (balancesError) throw balancesError;
 
 accountBalances = balancesData || [];
-    const memberIds = [
-      ...new Set(accounts.map(a => a.member_id))
-    ];
+  
+const memberIds = [
+  ...new Set(accounts.map(a => a.member_id))
+];
 
-    const { data: m, error: me } = memberIds.length
-      ? await ctx.db
-          .from('members')
-          .select('id,member_number,full_name,phone,status')
-          .eq('organization_id', ctx.organization.id)
-          .in('id', memberIds)
-      : { data: [], error: null };
+// Load every active member, including members
+// who have not opened a savings account yet.
+const { data: activeMembers, error: activeMembersError } =
+  await ctx.db
+    .from('members')
+    .select('id,member_number,full_name,phone,status')
+    .eq('organization_id', ctx.organization.id)
+    .eq('status', 'ACTIVE');
 
-    if (me) throw me;
+if (activeMembersError) throw activeMembersError;
 
-    members = m || [];
+// Also load members attached to existing accounts,
+// including accounts belonging to inactive members.
+const { data: accountMembers, error: accountMembersError } =
+  memberIds.length
+    ? await ctx.db
+        .from('members')
+        .select('id,member_number,full_name,phone,status')
+        .eq('organization_id', ctx.organization.id)
+        .in('id', memberIds)
+    : { data: [], error: null };
+
+if (accountMembersError) throw accountMembersError;
+
+// Combine both lists without duplicate members.
+const memberMap = new Map();
+
+[...(activeMembers || []), ...(accountMembers || [])]
+  .forEach(member => memberMap.set(member.id, member));
+
+members = [...memberMap.values()];
+
 
     const accountIds = accounts.map(a => a.id);
 
