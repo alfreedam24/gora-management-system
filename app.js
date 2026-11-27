@@ -409,8 +409,8 @@ async function openRegistrationFeeModal(memberId){
         ${field('Notes','notes','textarea','',{full:true})}
       </div>
       <p class="note-box">
-        Registration fee is KES 400. The payment will be recorded
-        for verification.
+        Registration fee is KES 400. Once you record the payment,
+the member will automatically become ACTIVE.
       </p>
     </form>`;
 
@@ -451,7 +451,7 @@ async function openRegistrationFeeModal(memberId){
 
       if(error)throw error;
 
-      toast('Registration fee recorded for verification.');
+      toast('Registration fee recorded. Member is now ACTIVE.');
       await openMemberProfile(memberId);
     }catch(err){
       toast(err.message||'Registration fee could not be recorded.','error');
