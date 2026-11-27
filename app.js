@@ -336,6 +336,81 @@ async function approveMember(memberId){if(!roleCanApprove()){toast('Manager perm
     toast(err.message||'Member activation failed.','error');
   }
 }
+async function openRegistrationFeeModal(memberId){
+  if(!roleCanManage()){
+    toast('Manager permission required.','error');
+    return;
+  }
+
+  const m=window.__goraMemberProfile?.member;
+  if(!m)return;
+
+  const body=`
+    <form id="registrationFeeForm">
+      <div class="form-grid">
+        ${field('Amount (KES)','amount','number','400',{required:true})}
+        ${field('Payment date','paid_on','date',todayLocal(),{required:true})}
+        ${field('Payment method','payment_method','select','CASH',{
+          required:true,
+          choices:[
+            {value:'CASH',label:'Cash'},
+            {value:'MPESA',label:'M-Pesa'},
+            {value:'BANK',label:'Bank'}
+          ]
+        })}
+        ${field('Reference number','reference_number','text','')}
+        ${field('Notes','notes','textarea','',{full:true})}
+      </div>
+      <p class="note-box">
+        Registration fee is KES 400. The payment will be recorded
+        for verification.
+      </p>
+    </form>`;
+
+  openModal(
+    'Registration fee',
+    m.full_name,
+    body,
+    '<button class="btn btn-neutral" id="cancelRegistrationFee">Cancel</button><button class="btn btn-primary" id="saveRegistrationFee">Record payment</button>',
+    true
+  );
+
+  $('cancelRegistrationFee').onclick=()=>renderProfileModal();
+
+  $('saveRegistrationFee').onclick=async()=>{
+    const form=$('registrationFeeForm');
+    if(!form.reportValidity())return;
+
+    const data=getFormData(form);
+    const amount=Number(data.amount);
+
+    if(!Number.isFinite(amount)||amount<=0){
+      toast('Enter a valid payment amount.','error');
+      return;
+    }
+
+    try{
+      const {error}=await db.rpc(
+        'gora_member_registration_fee_record',
+        {
+          _member_id:memberId,
+          _amount:amount,
+          _payment_method:data.payment_method,
+          _reference_number:data.reference_number||null,
+          _paid_on:data.paid_on,
+          _notes:data.notes||null
+        }
+      );
+
+      if(error)throw error;
+
+      toast('Registration fee recorded for verification.');
+      await openMemberProfile(memberId);
+    }catch(err){
+      toast(err.message||'Registration fee could not be recorded.','error');
+    }
+  };
+}
 async function rejectMember(memberId){const reason=prompt('Reason for rejecting this member application:');if(!reason||reason.trim().length<5){toast('Enter a rejection reason of at least 5 characters.','error');return;}try{const {error}=await db.rpc('reject_member',{_member_id:memberId,_reason:reason.trim()});if(error)throw error;closeModal();toast('Member application rejected.');await renderMembers();}catch(err){toast(err.message||'Rejection failed.','error');}}
 function openEditMemberModal(memberId){
  const m=window.__goraMemberProfile?.member;if(!m)return;
