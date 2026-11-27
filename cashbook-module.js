@@ -66,15 +66,20 @@
       .replaceAll("_", " ");
   }
 
-  function statCard(label, value, description) {
-    return `
-      <div class="stat-card stat-blue">
-        <div class="stat-top">${esc(label)}</div>
-        <strong>${money(value)}</strong>
-        <small>${esc(description)}</small>
-      </div>
-    `;
-  }
+function statCard(label, value, description, type = "money") {
+  const displayValue = type === "count"
+    ? Number(value || 0).toLocaleString("en-KE")
+    : money(value);
+
+  return `
+    <div class="stat-card stat-blue">
+      <div class="stat-top">${esc(label)}</div>
+      <strong>${displayValue}</strong>
+      <small>${esc(description)}</small>
+    </div>
+  `;
+}
+
 
   async function getCashTransactions(db, organizationId) {
     const { data, error } = await db
