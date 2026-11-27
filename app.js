@@ -107,7 +107,16 @@ $('navigation').addEventListener('click', async (e) => {
     await renderChamas();
     return;
   }
-
+if (window.GORACapitalModule?.handles(moduleName)) {
+  await window.GORACapitalModule.render(moduleName, {
+    db,
+    organization,
+    authUser,
+    profile,
+    toast
+  });
+  return;
+}
     if (window.GORALoanModule?.handles(moduleName)) {
     await window.GORALoanModule.render(moduleName, {
       db,
