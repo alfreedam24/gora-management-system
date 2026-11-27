@@ -90,24 +90,12 @@ accountBalances = balancesData || [];
 
   const member = id =>
     members.find(m => m.id === id) || {};
-
   const balance = accountId =>
-  Number(
-    accountBalances.find(
-      b => b.savings_account_id === accountId
-    )?.posted_balance || 0
-  );
-      .reduce((sum, t) => {
-        if (t.transaction_type === 'DEPOSIT') {
-          return sum + Number(t.amount);
-        }
-
-        if (t.transaction_type === 'WITHDRAWAL') {
-          return sum - Number(t.amount);
-        }
-
-        return sum;
-      }, 0);
+    Number(
+      accountBalances.find(
+        b => b.savings_account_id === accountId
+      )?.posted_balance || 0
+    );
 
   const canPost = ctx =>
     ['SUPER_ADMIN', 'MANAGER', 'ACCOUNTANT', 'CASHIER']
