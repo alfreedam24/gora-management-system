@@ -105,6 +105,24 @@ function statCard(label, value, description, type = "money") {
     return data || [];
   }
 
+async function getCashbookSummary(db, organizationId) {
+  const { data, error } = await db.rpc(
+    "get_cashbook_summary",
+    {
+      p_organization_id: organizationId
+    }
+  );
+
+  if (error) throw error;
+
+  return data || {
+    balances: {},
+    posted_count: 0,
+    pending_count: 0,
+    expense_open_count: 0
+  };
+}
+  
   async function getExpenseRequests(db, organizationId) {
     const { data, error } = await db
       .from("expense_requests")
