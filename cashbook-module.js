@@ -491,33 +491,37 @@ async function getCashbookSummary(db, organizationId) {
         document.getElementById("expenseRows");
 
       try {
-        const [cashTransactions, expenses] =
-          await Promise.all([
-            getCashTransactions(db, organization.id),
-            getExpenseRequests(db, organization.id)
-          ]);
+        
+const [cashTransactions, expenses, summary] =
+  await Promise.all([
+    getCashTransactions(db, organization.id),
+    getExpenseRequests(db, organization.id),
+    getCashbookSummary(db, organization.id)
+  ]);
 
-        const postedCash = cashTransactions.filter(
-          tx => tx.status === "POSTED"
-        );
+const cashBalance = Number(
+  summary.balances?.CASH || 0
+);
 
-        const cashBalance =
-          calculateCashBalance(cashTransactions);
+const postedCount = Number(
+  summary.posted_count || 0
+);
 
-        const pendingCash = cashTransactions.filter(
-          tx => tx.status === "PENDING"
-        ).length;
+const pendingCash = Number(
+  summary.pending_count || 0
+);
 
-        const pendingExpenses = expenses.filter(
-          expense => [
-            "SUBMITTED",
-            "VALIDATED",
-            "FLAGGED",
-            "APPROVED",
-            "PARTIALLY_SETTLED",
-            "SETTLED"
-          ].includes(expense.status)
-        ).length;
+const pendingExpenses = expenses.filter(
+  expense => [
+    "SUBMITTED",
+    "VALIDATED",
+    "FLAGGED",
+    "APPROVED",
+    "PARTIALLY_SETTLED",
+    "SETTLED"
+  ].includes(expense.status)
+).length;
+
 
         if (stats) {
           stats.innerHTML = `
