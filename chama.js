@@ -479,52 +479,545 @@ async function openRemoveTransfer(g, membershipId) {
   };
 }
 
+
 async function renderChamaWeeklyCollection(g) {
-  const target=$('chamaProfileContent');
-  const start=chamaCollectionWeek;
-  const end=chamaWeekEnd(start);
-  target.innerHTML=`<div class="module-header"><h3>Weekly savings & loan collection</h3><label class="form-field">Week starting<input id="chamaWeekPicker" type="date" value="${esc(start)}"></label><button class="btn btn-soft" id="chamaSheetExport" type="button">Export sheet</button></div><div id="chamaWeeklyCollectionBody"><p>Loading collection…</p></div>`;
-  $('chamaWeekPicker').onchange=e=>{if(!e.target.value)return;chamaCollectionWeek=chamaWeekStart(new Date(`${e.target.value}T00:00:00`));renderChamaWeeklyCollection(g);};
-  $('chamaSheetExport').onclick=()=>exportChamaCollectionSheet(g);
-  try{
-    const members=await safeQuery(db.from('chama_memberships').select('member_id').eq('organization_id',organization.id).eq('group_id',g.id).eq('status','ACTIVE'))||[];
-    const ids=[...new Set(members.map(x=>x.member_id))];
-    const memberRows=ids.length?await safeQuery(db.from('members').select('id,member_number,full_name').eq('organization_id',organization.id).in('id',ids).order('full_name'))||[]:[];
-    const entries=await safeQuery(db.from('chama_collection_entries').select('*').eq('organization_id',organization.id).eq('group_id',g.id).gte('collection_date',start).lte('collection_date',end).order('created_at'))||[];
-    const map={};entries.forEach(e=>{map[e.member_id]=map[e.member_id]||{savings:0,loan:0,entries:[]};map[e.member_id][e.collection_type==='SAVINGS'?'savings':'loan']+=Number(e.amount||0);map[e.member_id].entries.push(e);});
-    const totals=entries.filter(e=>['RECORDED','POSTED'].includes(e.status)).reduce((a,e)=>{a[e.collection_type==='SAVINGS'?'savings':'loan']+=Number(e.amount||0);return a;},{savings:0,loan:0});
-    $('chamaWeeklyCollectionBody').innerHTML=`
-      <div class="form-grid"><div class="stat-card"><small>Weekly savings target</small><h3>${chamaMoney(ids.length*Number(g.target_weekly_savings||100))}</h3></div><div class="stat-card"><small>Recorded savings</small><h3>${chamaMoney(totals.savings)}</h3></div><div class="stat-card"><small>Recorded loan repayments</small><h3>${chamaMoney(totals.loan)}</h3></div><div class="stat-card"><small>Total recorded</small><h3>${chamaMoney(totals.savings+totals.loan)}</h3></div></div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Member</th><th>Savings</th><th>Loan repayment</th><th>Actions</th></tr></thead><tbody>
-      ${memberRows.map(m=>{const x=map[m.id]||{savings:0,loan:0};return `<tr><td>${esc(m.full_name)}<small>${esc(m.member_number||'')}</small></td><td>${chamaMoney(x.savings)}</td><td>${chamaMoney(x.loan)}</td><td><button class="btn btn-soft btn-sm" data-chama-collect="${esc(m.id)}" type="button">Record</button></td></tr>`}).join('')}
-      </tbody></table></div>
-      <p class="note-box">These are collection-register entries only. They do not change member savings balances or the loan ledger. Post the money through the approved GORA savings or loan repayment workflow, then reconcile the receipt.</p>`;
-    $('chamaWeeklyCollectionBody').querySelectorAll('[data-chama-collect]').forEach(btn=>btn.onclick=()=>openRecordChamaCollection(g,btn.getAttribute('data-chama-collect'),start));
-  }catch(error){
-    $('chamaWeeklyCollectionBody').innerHTML=`<div class="error-box">Unable to load weekly collection. Apply the Chama collection SQL migration first. ${chamaSafeError(error)}</div>`;
+  const target = $('chamaProfileContent');
+  const start = chamaCollectionWeek;
+  const end = chamaWeekEnd(start);
+
+  target.innerHTML = `
+    <div class="module-header">
+      <h3>Weekly Chama Collection Register</h3>
+      <label class="form-field">
+        Week starting
+        <input id="chamaWeekPicker" type="date" value="${esc(start)}">
+      </label>
+    </div>
+    <div id="chamaWeeklyCollectionBody">
+      <p>Loading collection...</p>
+    </div>
+  `;
+
+  $('chamaWeekPicker').onchange = e => {
+    if (!e.target.value) return;
+    chamaCollectionWeek = chamaWeekStart(
+      new Date(`${e.target.value}T00:00:00`)
+    );
+    renderChamaWeeklyCollection(g);
+  };
+
+  try {
+    const memberships = await safeQuery(
+      db.from('chama_memberships')
+        .select('member_id')
+        .eq('organization_id', organization.id)
+        .eq('group_id', g.id)
+        .eq('status', 'ACTIVE')
+    ) || [];
+
+    const memberIds = [...new Set(memberships.map(x => x.member_id))];
+
+    const members = memberIds.length
+      ? await safeQuery(
+          db.from('members')
+            .select('id,member_number,full_name')
+            .eq('organization_id', organization.id)
+            .in('id', memberIds)
+            .order('full_name')
+        ) || []
+      : [];
+
+    const entries = await safeQuery(
+      db.from('chama_collection_entries')
+        .select('*')
+        .eq('organization_id', organization.id)
+        .eq('group_id', g.id)
+        .gte('collection_date', start)
+        .lte('collection_date', end)
+        .order('created_at')
+    ) || [];
+
+    const categories = {
+      SAVINGS: 'savings',
+      LOAN_REPAYMENT: 'loan',
+      PROCESSING_FEE: 'processing',
+      REGISTRATION_FEE: 'registration',
+      FINE: 'fine'
+    };
+
+    const totals = {
+      savings: 0,
+      loan: 0,
+      processing: 0,
+      registration: 0,
+      fine: 0
+    };
+
+    const memberTotals = {};
+
+    entries.forEach(entry => {
+      const key = categories[entry.collection_type];
+      if (!key) return;
+
+      memberTotals[entry.member_id] =
+        memberTotals[entry.member_id] || {
+          savings: 0,
+          loan: 0,
+          processing: 0,
+          registration: 0,
+          fine: 0
+        };
+
+      if (['RECORDED', 'POSTED'].includes(entry.status)) {
+        const amount = Number(entry.amount || 0);
+        totals[key] += amount;
+        memberTotals[entry.member_id][key] += amount;
+      }
+    });
+
+    const totalCollected = Object.values(totals)
+      .reduce((sum, amount) => sum + amount, 0);
+
+    const weeklyTarget =
+      members.length * Number(g.target_weekly_savings || 100);
+
+    $('chamaWeeklyCollectionBody').innerHTML = `
+      <div class="form-grid">
+        <div class="stat-card">
+          <small>Weekly savings target</small>
+          <h3>${chamaMoney(weeklyTarget)}</h3>
+        </div>
+        <div class="stat-card">
+          <small>Savings collected</small>
+          <h3>${chamaMoney(totals.savings)}</h3>
+        </div>
+        <div class="stat-card">
+          <small>Loan repayments</small>
+          <h3>${chamaMoney(totals.loan)}</h3>
+        </div>
+        <div class="stat-card">
+          <small>Processing fees</small>
+          <h3>${chamaMoney(totals.processing)}</h3>
+        </div>
+        <div class="stat-card">
+          <small>Registration fees</small>
+          <h3>${chamaMoney(totals.registration)}</h3>
+        </div>
+        <div class="stat-card">
+          <small>Fines collected</small>
+          <h3>${chamaMoney(totals.fine)}</h3>
+        </div>
+        <div class="stat-card">
+          <small>Total recorded</small>
+          <h3>${chamaMoney(totalCollected)}</h3>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Savings</th>
+              <th>Loan repayment</th>
+              <th>Fees</th>
+              <th>Fines</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${members.map(member => {
+              const x = memberTotals[member.id] || {};
+              return `
+                <tr>
+                  <td>
+                    ${esc(member.full_name)}
+                    <small>${esc(member.member_number || '')}</small>
+                  </td>
+                  <td>${chamaMoney(x.savings || 0)}</td>
+                  <td>${chamaMoney(x.loan || 0)}</td>
+                  <td>
+                    ${chamaMoney(
+                      Number(x.processing || 0) +
+                      Number(x.registration || 0)
+                    )}
+                  </td>
+                  <td>${chamaMoney(x.fine || 0)}</td>
+                  <td>
+                    <button
+                      class="btn btn-soft btn-sm"
+                      data-chama-collect="${esc(member.id)}"
+                      type="button">
+                      Add receipt
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="note-box">
+        Only existing posted savings and loan receipts, and verified fee
+        or fine receipts, can be added. This register does not post money
+        to the ledger again.
+      </p>
+    `;
+
+    $('chamaWeeklyCollectionBody')
+      .querySelectorAll('[data-chama-collect]')
+      .forEach(button => {
+        button.onclick = () => openRecordChamaCollection(
+          g,
+          button.getAttribute('data-chama-collect'),
+          start
+        );
+      });
+
+  } catch (error) {
+    $('chamaWeeklyCollectionBody').innerHTML = `
+      <div class="error-box">
+        Unable to load weekly collection.
+        ${chamaSafeError(error)}
+      </div>
+    `;
   }
 }
 
-async function openRecordChamaCollection(g,memberId,weekStart) {
-  const member=await safeQuery(db.from('members').select('full_name').eq('organization_id',organization.id).eq('id',memberId).single());
-  const body=`<form id="chamaRecordCollectionForm"><label class="form-field">Member<input readonly value="${esc(member?.full_name||'Member')}"></label><label class="form-field">Collection type<select name="collection_type"><option value="SAVINGS">Weekly savings</option><option value="LOAN_REPAYMENT">Loan repayment</option></select></label><label class="form-field">Amount (KES)<input name="amount" type="number" min="1" step="0.01" required></label><label class="form-field">Collection date<input name="collection_date" type="date" value="${esc(weekStart)}" required></label><label class="form-field">Payment method<select name="payment_method"><option value="CASH">Cash</option><option value="MPESA">M-Pesa</option><option value="BANK">Bank</option></select></label><label class="form-field">Reference / receipt<input name="reference_number" maxlength="100"></label><label class="form-field">Notes<input name="notes" maxlength="250"></label><p id="chamaCollectionMessage"></p></form>`;
-  openModal('Record Weekly Collection',member?.full_name||g.group_name,body,`<button class="btn btn-primary" id="chamaCollectionSave" type="button">Save collection entry</button>`,true);
-  $('chamaCollectionSave').onclick=async()=>{
-    const f=$('chamaRecordCollectionForm');if(!f.reportValidity())return;
-    const d=Object.fromEntries(new FormData(f).entries());
-    const amount=Number(d.amount);if(!Number.isFinite(amount)||amount<=0)return setMessage('chamaCollectionMessage','Enter a valid amount.');
-    const {error}=await db.from('chama_collection_entries').insert({
-      organization_id:organization.id,group_id:g.id,member_id:memberId,
-      collection_type:d.collection_type,amount,collection_date:d.collection_date,
-      payment_method:d.payment_method,reference_number:d.reference_number||null,
-      notes:d.notes||null,status:'RECORDED',recorded_by:authUser?.id||null
+
+async function openRecordChamaCollection(g, memberId, weekStart) {
+  try {
+    const member = await safeQuery(
+      db.from('members')
+        .select('id,full_name')
+        .eq('organization_id', organization.id)
+        .eq('id', memberId)
+        .single()
+    );
+
+    const weekEnd = chamaWeekEnd(weekStart);
+
+    const existing = await safeQuery(
+      db.from('chama_collection_entries')
+        .select(`
+          savings_transaction_id,
+          repayment_id,
+          gora2_repayment_id,
+          processing_fee_payment_id,
+          registration_fee_payment_id,
+          fine_payment_id
+        `)
+        .eq('organization_id', organization.id)
+    ) || [];
+
+    const usedIds = new Set();
+    existing.forEach(row => {
+      [
+        row.savings_transaction_id,
+        row.repayment_id,
+        row.gora2_repayment_id,
+        row.processing_fee_payment_id,
+        row.registration_fee_payment_id,
+        row.fine_payment_id
+      ].filter(Boolean).forEach(id => usedIds.add(String(id)));
     });
-    if(error)return setMessage('chamaCollectionMessage',error.message);
-    toast('Collection entry recorded.');
-    await openChamaProfile(g.id);
-    await renderChamaWeeklyCollection(g);
-  };
+
+    const receipts = [];
+
+    function receiptDate(row) {
+      const value =
+        row.transaction_date ||
+        row.payment_date ||
+        row.paid_on ||
+        row.fine_date ||
+        row.created_at;
+
+      return value ? String(value).slice(0, 10) : '';
+    }
+
+    function normalizeMethod(value) {
+      const method = String(value || '').toUpperCase().replace(/[\s-]/g, '');
+
+      if (method === 'MPESA' || method === 'MOBILEMONEY') return 'MPESA';
+      if (method === 'CASH') return 'CASH';
+      if (method === 'BANK') return 'BANK';
+      return 'OTHER';
+    }
+
+    function addReceipt(row, type, linkColumn, description) {
+      const id = String(row.id);
+      const date = receiptDate(row);
+      const amount = Number(row.amount || 0);
+
+      if (usedIds.has(id)) return;
+      if (!date || date < weekStart || date > weekEnd) return;
+      if (!Number.isFinite(amount) || amount <= 0) return;
+
+      receipts.push({
+        id,
+        type,
+        linkColumn,
+        date,
+        amount,
+        method: normalizeMethod(row.payment_method),
+        reference: row.reference_number || row.transaction_number || '',
+        description
+      });
+    }
+
+    // 1. Posted savings deposits
+    const savingsAccounts = await safeQuery(
+      db.from('savings_accounts')
+        .select('id')
+        .eq('organization_id', organization.id)
+        .eq('member_id', memberId)
+    ) || [];
+
+    const savingsAccountIds = savingsAccounts.map(x => x.id);
+
+    if (savingsAccountIds.length) {
+      const savings = await safeQuery(
+        db.from('savings_transactions')
+          .select('*')
+          .eq('organization_id', organization.id)
+          .in('savings_account_id', savingsAccountIds)
+          .eq('transaction_type', 'DEPOSIT')
+          .eq('status', 'POSTED')
+          .not('journal_entry_id', 'is', null)
+      ) || [];
+
+      savings.forEach(row => addReceipt(
+        row,
+        'SAVINGS',
+        'savings_transaction_id',
+        'Savings deposit'
+      ));
+    }
+
+    // 2. Posted GORA 2.0 loan repayments
+    const loanAccounts = await safeQuery(
+      db.from('gora2_loan_accounts')
+        .select('id')
+        .eq('organization_id', organization.id)
+        .eq('member_id', memberId)
+    ) || [];
+
+    const loanAccountIds = loanAccounts.map(x => x.id);
+
+    if (loanAccountIds.length) {
+      const repayments = await safeQuery(
+        db.from('gora2_loan_repayments')
+          .select('*')
+          .eq('organization_id', organization.id)
+          .in('loan_account_id', loanAccountIds)
+          .eq('status', 'POSTED')
+          .not('journal_entry_id', 'is', null)
+      ) || [];
+
+      repayments.forEach(row => addReceipt(
+        row,
+        'LOAN_REPAYMENT',
+        'gora2_repayment_id',
+        'Loan repayment'
+      ));
+    }
+
+    // 3. Verified loan processing fee receipts
+    const applications = await safeQuery(
+      db.from('gora2_loan_applications')
+        .select('id')
+        .eq('organization_id', organization.id)
+        .eq('member_id', memberId)
+    ) || [];
+
+    const applicationIds = applications.map(x => x.id);
+
+    if (applicationIds.length) {
+      const fees = await safeQuery(
+        db.from('gora2_loan_application_fee_payments')
+          .select('*')
+          .eq('organization_id', organization.id)
+          .in('application_id', applicationIds)
+          .eq('status', 'VERIFIED')
+          .not('journal_entry_id', 'is', null)
+      ) || [];
+
+      fees.forEach(row => addReceipt(
+        row,
+        'PROCESSING_FEE',
+        'processing_fee_payment_id',
+        'Loan processing fee'
+      ));
+    }
+
+    // 4. Verified registration fee receipts
+    const registrationFees = await safeQuery(
+      db.from('gora_member_registration_fee_payments')
+        .select('*')
+        .eq('organization_id', organization.id)
+        .eq('member_id', memberId)
+        .eq('status', 'VERIFIED')
+        .not('journal_entry_id', 'is', null)
+    ) || [];
+
+    registrationFees.forEach(row => addReceipt(
+      row,
+      'REGISTRATION_FEE',
+      'registration_fee_payment_id',
+      'Registration fee'
+    ));
+
+    // 5. Verified fine receipts
+    const fines = await safeQuery(
+      db.from('gora2_fine_payments')
+        .select('*')
+        .eq('organization_id', organization.id)
+        .eq('member_id', memberId)
+        .eq('status', 'VERIFIED')
+        .not('journal_entry_id', 'is', null)
+    ) || [];
+
+    fines.forEach(row => addReceipt(
+      row,
+      'FINE',
+      'fine_payment_id',
+      'Fine payment'
+    ));
+
+    if (!receipts.length) {
+      openModal(
+        'Add Collection Receipt',
+        member?.full_name || g.group_name,
+        `<p class="note-box">
+          No unused, posted or verified receipts were found for this member
+          during ${esc(weekStart)} to ${esc(weekEnd)}.
+          First record and post the payment through the appropriate GORA
+          savings, loan, fee or fine workflow.
+        </p>`,
+        `<button class="btn btn-secondary" type="button" onclick="closeModal()">Close</button>`,
+        true
+      );
+      return;
+    }
+
+    const options = receipts.map((row, index) => `
+      <option value="${index}">
+        ${esc(row.description)} —
+        ${esc(row.date)} —
+        ${chamaMoney(row.amount)} —
+        ${esc(row.method)}
+        ${row.reference ? ` — ${esc(row.reference)}` : ''}
+      </option>
+    `).join('');
+
+    const body = `
+      <form id="chamaRecordCollectionForm">
+        <label class="form-field">
+          Member
+          <input readonly value="${esc(member?.full_name || 'Member')}">
+        </label>
+
+        <label class="form-field">
+          Select posted / verified receipt
+          <select name="receipt_index" required>
+            <option value="">Choose a receipt</option>
+            ${options}
+          </select>
+        </label>
+
+        <div id="chamaReceiptDetails" class="note-box">
+          Select a receipt to view its details.
+        </div>
+
+        <p id="chamaCollectionMessage"></p>
+      </form>
+    `;
+
+    openModal(
+      'Add Collection Receipt',
+      member?.full_name || g.group_name,
+      body,
+      `<button class="btn btn-primary" id="chamaCollectionSave" type="button">Add to register</button>`,
+      true
+    );
+
+    const form = $('chamaRecordCollectionForm');
+    const select = form.querySelector('[name="receipt_index"]');
+
+    select.onchange = () => {
+      const row = receipts[Number(select.value)];
+      if (!row) {
+        $('chamaReceiptDetails').innerHTML =
+          'Select a receipt to view its details.';
+        return;
+      }
+
+      $('chamaReceiptDetails').innerHTML = `
+        <strong>${esc(row.description)}</strong><br>
+        Date: ${esc(row.date)}<br>
+        Amount: ${chamaMoney(row.amount)}<br>
+        Payment method: ${esc(row.method)}<br>
+        Reference: ${esc(row.reference || 'N/A')}
+      `;
+    };
+
+    $('chamaCollectionSave').onclick = async () => {
+      if (!form.reportValidity()) return;
+
+      const index = Number(select.value);
+      const row = receipts[index];
+
+      if (!row) {
+        return setMessage(
+          'chamaCollectionMessage',
+          'Please select a valid receipt.'
+        );
+      }
+
+      const payload = {
+        organization_id: organization.id,
+        group_id: g.id,
+        member_id: memberId,
+        collection_type: row.type,
+        amount: row.amount,
+        collection_date: row.date,
+        payment_method: row.method,
+        reference_number: row.reference || null,
+        status: 'POSTED',
+        recorded_by: authUser?.id || null
+      };
+
+      payload[row.linkColumn] = row.id;
+
+      const { error } = await db
+        .from('chama_collection_entries')
+        .insert(payload);
+
+      if (error) {
+        return setMessage(
+          'chamaCollectionMessage',
+          error.message
+        );
+      }
+
+      toast('Receipt added to the Chama collection register.');
+      closeModal();
+      await openChamaProfile(g.id);
+      await renderChamaWeeklyCollection(g);
+    };
+
+  } catch (error) {
+    openModal(
+      'Collection Receipt Error',
+      g.group_name,
+      `<div class="error-box">${chamaSafeError(error)}</div>`,
+      `<button class="btn btn-secondary" type="button" onclick="closeModal()">Close</button>`,
+      true
+    );
+  }
 }
+
 
 async function renderChamaCollectionHistory(g) {
   const target=$('chamaProfileContent');
